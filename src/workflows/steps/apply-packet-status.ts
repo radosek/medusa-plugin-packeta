@@ -6,7 +6,7 @@ import { statusGroup } from "../../providers/packeta/lib/status"
 import type { CurrentStatusRecord, PacketaPushEvent } from "../../providers/packeta/types"
 
 /** Statuses after which a packet's Packeta status never moves again. */
-const TERMINAL_STATUS_IDS = [7, 10, 11]
+const TERMINAL_STATUS_IDS = new Set([7, 10, 11])
 
 export interface ApplyPacketStatusInput {
 	packet_id: string
@@ -104,9 +104,9 @@ export const applyPacketStatusStep = createStep<ApplyPacketStatusInput, PacketSt
 		// back to an earlier state (Packeta retries out of order; webhooks can be replayed).
 		if (
 			record.status_id != null &&
-			TERMINAL_STATUS_IDS.includes(record.status_id) &&
+			TERMINAL_STATUS_IDS.has(record.status_id) &&
 			statusId != null &&
-			!TERMINAL_STATUS_IDS.includes(statusId)
+			!TERMINAL_STATUS_IDS.has(statusId)
 		) {
 			if (input.event_id) await service.updatePacketaPackets({ id: record.id, last_event_id: input.event_id })
 			return new StepResponse(noop(record), null)

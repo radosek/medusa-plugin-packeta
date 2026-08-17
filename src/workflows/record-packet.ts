@@ -22,9 +22,9 @@ export const recordPacketWorkflow = createWorkflow(
 			filters: { id: input.fulfillment_id },
 		})
 
-		const stepInput = transform({ fulfillments, input }, ({ fulfillments, input }) => {
+		const stepInput = transform({ fulfillments, input }, (data) => {
 			const f = (
-				fulfillments.data as {
+				data.fulfillments.data as {
 					id: string
 					provider_id: string
 					data: Record<string, unknown> | null
@@ -34,8 +34,8 @@ export const recordPacketWorkflow = createWorkflow(
 				}[]
 			)[0]
 			return {
-				fulfillment_id: input.fulfillment_id,
-				order_id: input.order_id ?? f?.order?.id ?? null,
+				fulfillment_id: data.input.fulfillment_id,
+				order_id: data.input.order_id ?? f?.order?.id ?? null,
 				provider_id: f?.provider_id ?? null,
 				data: f?.data ?? null,
 				canceled_at: f?.canceled_at ?? null,
@@ -45,10 +45,10 @@ export const recordPacketWorkflow = createWorkflow(
 
 		const packet = recordPacketStep(stepInput)
 		markCodCollectedStep(
-			transform({ packet, stepInput }, ({ packet, stepInput }) => ({
-				order_id: stepInput.order_id,
-				cod: Number((packet as { cod?: unknown } | null)?.cod ?? 0),
-				barcode: String((packet as { barcode?: unknown } | null)?.barcode ?? ""),
+			transform({ packet, stepInput }, (d) => ({
+				order_id: d.stepInput.order_id,
+				cod: Number((d.packet as { cod?: unknown } | null)?.cod ?? 0),
+				barcode: String((d.packet as { barcode?: unknown } | null)?.barcode ?? ""),
 			})),
 		)
 		return new WorkflowResponse(packet)

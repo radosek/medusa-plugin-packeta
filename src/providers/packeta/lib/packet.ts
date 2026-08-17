@@ -263,7 +263,7 @@ export function round2(n: number): number {
 export function buildCustoms(
 	input: BuildPacketInput,
 	currency: string,
-	packetWeightKg: number,
+	totalWeightKg: number,
 ): { attributes: PacketaAttribute[]; items: PacketaAttribute[][] } {
 	const { order, items, additional, options } = input
 	const o = order as
@@ -343,7 +343,7 @@ export function buildCustoms(
 	}
 	// Distribute unknown weights so item weights sum to the packet weight (Packeta requires > 0 each).
 	const unknown = perItem.filter((p) => !p.weightKg)
-	const spare = Math.max(packetWeightKg - knownWeight, 0.01 * Math.max(unknown.length, 1))
+	const spare = Math.max(totalWeightKg - knownWeight, 0.01 * Math.max(unknown.length, 1))
 	for (const p of perItem) {
 		const weight = p.weightKg ?? round2(Math.max(spare / Math.max(unknown.length, 1), 0.01))
 		built.push(Object.entries({ ...p.attrs, weight }).map(([key, value]) => ({ key, value })))

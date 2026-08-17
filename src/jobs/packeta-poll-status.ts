@@ -32,8 +32,10 @@ export default async function packetaPollStatusJob(container: MedusaContainer) {
 	if (!packets.length) return
 
 	let ok = 0
+	// Sequential on purpose: one Packeta call at a time keeps the poll gentle on their API.
 	for (const p of packets) {
 		try {
+			// eslint-disable-next-line no-await-in-loop
 			await syncPacketStatusWorkflow(container).run({ input: { packet_id: p.packet_id } })
 			ok++
 		} catch (e) {

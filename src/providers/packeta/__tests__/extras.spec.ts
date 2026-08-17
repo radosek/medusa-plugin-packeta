@@ -175,8 +175,9 @@ describe("customs + size", () => {
 	})
 })
 
+const d = (h: number, m: number) => new Date(2026, 0, 5, h, m) // Monday
+
 describe("cronMatches", () => {
-	const d = (h: number, m: number) => new Date(2026, 0, 5, h, m) // Monday
 	it("handles star, step, list, range", () => {
 		expect(cronMatches("*/30 * * * *", d(10, 0))).toBe(true)
 		expect(cronMatches("*/30 * * * *", d(10, 30))).toBe(true)

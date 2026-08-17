@@ -112,10 +112,10 @@ export const cancelPacketWorkflow = createWorkflow(
 		const plan = planCancelStep(input)
 
 		when("packeta-cancel-fulfillment", plan, (p) => p.cancel_fulfillment).then(() => {
-			const cancelInput = transform({ plan, input }, ({ plan, input }) => ({
-				order_id: plan.order_id as string,
-				fulfillment_id: plan.fulfillment_id as string,
-				canceled_by: input.canceled_by,
+			const cancelInput = transform({ plan, input }, (d) => ({
+				order_id: d.plan.order_id as string,
+				fulfillment_id: d.plan.fulfillment_id as string,
+				canceled_by: d.input.canceled_by,
 			}))
 			cancelOrderFulfillmentWorkflow.runAsStep({ input: cancelInput })
 		})

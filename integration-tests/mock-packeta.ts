@@ -62,7 +62,7 @@ const CARRIERS = [
 	},
 ]
 
-const tag = (xml: string, name: string) => xml.match(new RegExp(`<${name}>([^<]*)</${name}>`))?.[1]
+const tag = (doc: string, name: string) => doc.match(new RegExp(`<${name}>([^<]*)</${name}>`))?.[1]
 const ok = (inner: string) => `<response><status>ok</status><result>${inner}</result></response>`
 const fault = (name: string, msg: string, detail = "") =>
 	`<response><status>fault</status><fault>${name}</fault><string>${msg}</string>${detail ? `<detail>${detail}</detail>` : ""}</response>`

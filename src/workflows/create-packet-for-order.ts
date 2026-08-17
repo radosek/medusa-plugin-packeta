@@ -82,15 +82,16 @@ export const createPacketForOrderWorkflow = createWorkflow(
 
 		const existing = countOrderPacketsStep({ order_id: input.order_id })
 
-		const fulfillmentInput = transform({ orders, input, existing }, ({ orders, input, existing }) => {
-			const order = (orders.data as OrderRow[])[0]
+		const fulfillmentInput = transform({ orders, input, existing }, (d) => {
+			const { orders: ordersResult, input: wfInput, existing: existingCount } = d
+			const order = (ordersResult.data as OrderRow[])[0]
 			const packetaMethod = (order.shipping_methods ?? []).find(isPacketaShippingMethod)
 			if (!packetaMethod) {
 				throw new MedusaError(MedusaError.Types.INVALID_DATA, "Order has no Packeta shipping method.")
 			}
 			const items =
-				input.items && input.items.length
-					? input.items
+				wfInput.items && wfInput.items.length
+					? wfInput.items
 					: order.items
 							.map((i) => ({
 								id: i.id,
@@ -109,27 +110,27 @@ export const createPacketForOrderWorkflow = createWorkflow(
 			// the first packet only — see recordPacketWorkflow / markCodCollectedStep.
 			const byId = new Map(order.items.map((i) => [i.id, i]))
 			const linesValue = items.reduce((sum, it) => sum + num(byId.get(it.id)?.unit_price) * it.quantity, 0)
-			const first = existing === 0
-			const packeta = { ...input.packeta }
+			const first = existingCount === 0
+			const packeta = { ...wfInput.packeta }
 			if (packeta.value == null)
 				packeta.value = round2(linesValue + (first ? num(order.shipping_total) : 0)) || undefined
 			if (packeta.number == null && !first) {
-				packeta.number = `${packeta.number_prefix ?? ""}${order.custom_display_id ?? order.display_id ?? order.id}-${existing + 1}`
+				packeta.number = `${packeta.number_prefix ?? ""}${order.custom_display_id ?? order.display_id ?? order.id}-${existingCount + 1}`
 			}
 			return {
-				order_id: input.order_id,
+				order_id: wfInput.order_id,
 				items,
-				created_by: input.created_by,
-				no_notification: input.no_notification,
+				created_by: wfInput.created_by,
+				no_notification: wfInput.no_notification,
 				additional_data: { packeta },
 			}
 		})
 
 		const fulfillment = createOrderFulfillmentWorkflow.runAsStep({ input: fulfillmentInput })
 
-		const recordInput = transform({ fulfillment, input }, ({ fulfillment, input }) => ({
-			fulfillment_id: fulfillment.id,
-			order_id: input.order_id,
+		const recordInput = transform({ fulfillment, input }, (d) => ({
+			fulfillment_id: d.fulfillment.id,
+			order_id: d.input.order_id,
 		}))
 		const packet = recordPacketWorkflow.runAsStep({ input: recordInput })
 

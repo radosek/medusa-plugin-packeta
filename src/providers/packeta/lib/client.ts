@@ -194,7 +194,7 @@ export class PacketaClient {
 			method,
 			fault,
 			this.redact(message),
-			parseAttributeFaults(detail).map((a) => ({ ...a, fault: this.redact(a.fault) })),
+			parseAttributeFaults(detail).map((a) => ({ name: a.name, fault: this.redact(a.fault) })),
 		)
 	}
 

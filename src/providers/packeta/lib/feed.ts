@@ -78,8 +78,9 @@ const SPECIAL = /večerní|vecerni|evening|express|expres|sobot|saturday|weekend
  * Packeta's own plain "home" service first, then any Packeta-own service that
  * isn't a special variant, then any non-special carrier, then whatever is left.
  */
+const label = (c: PacketaCarrier) => `${c.name} ${c.labelName ?? ""}`
+
 export function pickHomeDeliveryCarrier(list: PacketaCarrier[]): PacketaCarrier | undefined {
-	const label = (c: PacketaCarrier) => `${c.name} ${c.labelName ?? ""}`
 	return (
 		list.find((c) => PACKETA_OWN.test(label(c)) && HOME_WORDS.test(label(c)) && !SPECIAL.test(label(c))) ??
 		list.find((c) => PACKETA_OWN.test(label(c)) && !SPECIAL.test(label(c))) ??

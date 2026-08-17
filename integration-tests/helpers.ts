@@ -63,6 +63,7 @@ async function step<T>(name: string, fn: () => Promise<T>): Promise<T> {
 		return await fn()
 	} catch (e) {
 		const err = e as { response?: { status?: number; data?: unknown }; message?: string }
+		// eslint-disable-next-line preserve-caught-error -- lib target is ES2021 (no ErrorOptions); message carries the detail
 		throw new Error(
 			`seedStore step "${name}" failed: ${err.response ? `${err.response.status} ${JSON.stringify(err.response.data)}` : err.message}`,
 		)

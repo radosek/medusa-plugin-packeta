@@ -76,8 +76,8 @@ const PacketaPage = () => {
 	}, [q, group, kind, page])
 
 	useEffect(() => {
-		const t = setTimeout(() => void load(), q ? 250 : 0)
-		return () => clearTimeout(t)
+		const timer = setTimeout(() => void load(), q ? 250 : 0)
+		return () => clearTimeout(timer)
 	}, [load, q])
 
 	useEffect(() => {
@@ -155,10 +155,10 @@ const PacketaPage = () => {
 	const refreshSelected = async () => {
 		setBusy("refresh")
 		try {
-			for (const id of selected) {
-				const { packet } = await refreshPacket(id)
-				setRows((rs) => rs.map((r) => (r.packet_id === packet.packet_id ? packet : r)))
-			}
+			const refreshed = await Promise.all([...selected].map((id) => refreshPacket(id)))
+			setRows((rs) =>
+				rs.map((r) => refreshed.find(({ packet }) => packet.packet_id === r.packet_id)?.packet ?? r),
+			)
 			toast.success(t("packeta"), { description: t("refreshed_n", { n: selected.size }) })
 		} catch (e) {
 			toast.error(t("packeta"), { description: (e as Error).message })
