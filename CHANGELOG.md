@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+- `LICENSE` file shipped in the package; `author` set to the full name.
+- Lint clean-up (no behaviour change).
+- README: npm/CI badges.
+
 ## 0.1.0
 
 Initial release. Tested against Medusa 2.19.0.

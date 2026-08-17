@@ -4,11 +4,13 @@
 
 # medusa-plugin-packeta
 
+[![npm](https://img.shields.io/npm/v/medusa-plugin-packeta.svg)](https://www.npmjs.com/package/medusa-plugin-packeta) [![CI](https://github.com/radosek/medusa-plugin-packeta/actions/workflows/ci.yml/badge.svg)](https://github.com/radosek/medusa-plugin-packeta/actions/workflows/ci.yml) [![license](https://img.shields.io/npm/l/medusa-plugin-packeta.svg)](LICENSE)
+
 [Packeta](https://www.packeta.com/) (Zásilkovna) fulfillment provider for **Medusa v2** — pickup points (Z-Point, Z-BOX, external carrier PUDOs), home delivery through Packeta's carrier network across Europe, cash on delivery, labels (PDF/ZPL, Packeta or carrier), push tracking, returns via the claim assistant, plus an admin UI and a storefront widget helper.
 
 > **Disclaimer:** This is an unofficial, community-built integration. It is **not affiliated with, endorsed by, or maintained by Packeta s.r.o. / Zásilkovna s.r.o.** "Packeta", "Zásilkovna" and their logos are trademarks of their respective owners, used here only to identify the service this plugin integrates with.
 
-[Packeta API docs](https://docs.packeta.com/) | [Medusa Fulfillment Module](https://docs.medusajs.com/resources/commerce-modules/fulfillment)
+[npm](https://www.npmjs.com/package/medusa-plugin-packeta) | [Packeta API docs](https://docs.packeta.com/) | [Medusa Fulfillment Module](https://docs.medusajs.com/resources/commerce-modules/fulfillment)
 
 ## Features
 

@@ -1,6 +1,6 @@
 {
 	"name": "medusa-plugin-packeta",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Packeta (Zásilkovna) fulfillment provider for Medusa v2 — pickup points, Z-BOX, home delivery, COD, labels, tracking, returns",
 	"keywords": [
 		"czech",
