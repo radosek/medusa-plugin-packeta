@@ -1,5 +1,6 @@
 import { createWorkflow, transform, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
 import { useQueryGraphStep } from "@medusajs/medusa/core-flows"
+import { markCodCollectedStep } from "./steps/mark-cod-collected"
 import { recordPacketStep } from "./steps/record-packet"
 
 export interface RecordPacketWorkflowInput {
@@ -43,6 +44,13 @@ export const recordPacketWorkflow = createWorkflow(
 		})
 
 		const packet = recordPacketStep(stepInput)
+		markCodCollectedStep(
+			transform({ packet, stepInput }, ({ packet, stepInput }) => ({
+				order_id: stepInput.order_id,
+				cod: Number((packet as { cod?: unknown } | null)?.cod ?? 0),
+				barcode: String((packet as { barcode?: unknown } | null)?.barcode ?? ""),
+			})),
+		)
 		return new WorkflowResponse(packet)
 	},
 )

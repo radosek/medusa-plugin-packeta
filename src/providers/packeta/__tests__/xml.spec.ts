@@ -1,11 +1,13 @@
 import {
 	buildRequest,
+	child,
+	childrenNamed,
+	childText,
 	escapeXml,
+	findFirst,
+	flat,
 	formatNumber,
-	readBlock,
-	readBlocks,
-	readFlat,
-	readTag,
+	parseXml,
 	unescapeXml,
 } from "../lib/xml"
 
@@ -42,13 +44,19 @@ describe("xml", () => {
 		expect(formatNumber(0.1 + 0.2)).toBe("0.3")
 	})
 
-	it("reads tags, blocks and flat records", () => {
-		const xml = `<response><status>ok</status><result><id>123</id><barcode>Z123</barcode><record><statusCode>2</statusCode></record><record><statusCode>7</statusCode></record></result></response>`
-		expect(readTag(xml, "status")).toBe("ok")
-		expect(readTag(xml, "id")).toBe("123")
-		expect(readTag(xml, "nope")).toBeUndefined()
-		expect(readBlock(xml, "result")).toContain("<barcode>Z123</barcode>")
-		expect(readBlocks(xml, "record")).toHaveLength(2)
-		expect(readFlat("<a>1</a><b>x &amp; y</b>")).toEqual({ a: "1", b: "x & y" })
+	it("parses nested documents into a tree and reads direct children only", () => {
+		const xml = `<?xml version="1.0"?><!-- c --><response><status>ok</status><result><id>123</id><barcode>Z123</barcode><courierInfo><courierInfoItem><id>999</id></courierInfoItem></courierInfo><record><statusCode>2</statusCode><note><![CDATA[a < b]]></note></record><record><statusCode>7</statusCode><empty/></record><text>x &amp; y</text></result></response>`
+		const root = parseXml(xml)!
+		expect(root.name).toBe("response")
+		expect(childText(root, "status")).toBe("ok")
+		const result = child(root, "result")!
+		// direct child wins over the nested courierInfoItem/id
+		expect(childText(result, "id")).toBe("123")
+		expect(childText(result, "nope")).toBeUndefined()
+		expect(childrenNamed(result, "record")).toHaveLength(2)
+		expect(flat(childrenNamed(result, "record")[0])).toEqual({ statusCode: "2", note: "a < b" })
+		expect(flat(result)).toEqual({ id: "123", barcode: "Z123", text: "x & y" })
+		expect(findFirst(result, "courierInfoItem")?.children[0].text).toBe("999")
+		expect(parseXml("")).toBeNull()
 	})
 })

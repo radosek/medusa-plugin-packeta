@@ -152,19 +152,27 @@ medusaIntegrationTestRunner({
 				point: { name: "Praha 4", street: "Hlavní 1" },
 			})
 
-			// Admin "create packet" route with an explicit COD amount and note.
+			// Admin "create packet" route: first packet with one of the two items —
+			// COD comes from the order flag (full total), value = its lines + shipping.
+			const { data: full } = await api.get(
+				`/admin/orders/${order.id}?fields=total,shipping_total,items.id`,
+				store.adminHeaders,
+			)
+			const itemId = full.order.items[0].id
 			const created = await api.post(
 				`/admin/packeta/orders/${order.id}/packet`,
-				{ cod_amount: 1000, note: "Ring twice", weight_kg: 0.7 },
+				{ items: [{ id: itemId, quantity: 1 }], note: "Ring twice", weight_kg: 0.7 },
 				store.adminHeaders,
 			)
 			expect(created.status).toBe(201)
 			const packet = created.data.packet
 			expect(packet).toMatchObject({
 				kind: "pickup",
-				cod: 1000,
+				cod: full.order.total,
+				value: 500 + full.order.shipping_total,
 				currency: "CZK",
 				weight_kg: 0.7,
+				number: String(order.display_id),
 				status: { group: "created" },
 				order: { id: order.id },
 			})
@@ -172,18 +180,32 @@ medusaIntegrationTestRunner({
 
 			const createXml = mock.calls.find((c) => c.body.includes("<createPacket>"))!.body
 			expect(createXml).toContain("<addressId>79</addressId>")
-			expect(createXml).toContain("<cod>1000</cod>")
+			expect(createXml).toContain(`<cod>${full.order.total}</cod>`)
 			expect(createXml).toContain("<note>Ring twice</note>")
 			expect(createXml).toContain("<eshop>test-sender</eshop>")
 			expect(createXml).toContain("<email>jan@example.com</email>")
+
+			// The order is now marked as COD-collected; the second packet (split
+			// shipment) carries no COD, insures only its own item and gets a "-2" reference.
+			await sleep(300)
+			const { data: flagged } = await api.get(`/admin/orders/${order.id}?fields=metadata`, store.adminHeaders)
+			expect(flagged.order.metadata).toMatchObject({
+				packeta_cod: "collected",
+				packeta_cod_barcode: packet.barcode,
+			})
+			const second = await api.post(`/admin/packeta/orders/${order.id}/packet`, {}, store.adminHeaders)
+			expect(second.data.packet).toMatchObject({ cod: 0, value: 500, number: `${order.display_id}-2` })
+			const list2 = await api.get(`/admin/packeta/packets?order_id=${order.id}`, store.adminHeaders)
+			expect(list2.data.count).toBe(2)
+			// A native partial fulfillment after that would also get COD 0 (flag is "collected").
 
 			// Fulfillment carries the tracking label.
 			const { data: withF } = await api.get(
 				`/admin/orders/${order.id}?fields=fulfillments.labels.tracking_number,fulfillments.data`,
 				store.adminHeaders,
 			)
-			expect(withF.order.fulfillments[0].labels[0].tracking_number).toBe(packet.barcode)
-			expect(withF.order.fulfillments[0].data.packet_id).toBe(packet.packet_id)
+			const firstF = withF.order.fulfillments.find((f: any) => f.data?.packet_id === packet.packet_id)
+			expect(firstF.labels[0].tracking_number).toBe(packet.barcode)
 
 			// Labels: pdf, zpl, carrier, bulk.
 			const pdf = await api.get(`/admin/packeta/packets/${packet.packet_id}/label`, {
@@ -210,7 +232,10 @@ medusaIntegrationTestRunner({
 			expect(bulk.headers["content-type"]).toBe("application/pdf")
 
 			// List / detail routes.
-			const list = await api.get(`/admin/packeta/packets?order_id=${order.id}`, store.adminHeaders)
+			const list = await api.get(
+				`/admin/packeta/packets?order_id=${order.id}&q=${packet.barcode}`,
+				store.adminHeaders,
+			)
 			expect(list.data.count).toBe(1)
 			const detail = await api.get(`/admin/packeta/packets/${packet.barcode}`, store.adminHeaders)
 			expect(detail.data.packet.packet_id).toBe(packet.packet_id)
@@ -235,7 +260,7 @@ medusaIntegrationTestRunner({
 				`/admin/orders/${order.id}?fields=fulfillment_status,fulfillments.shipped_at`,
 				store.adminHeaders,
 			)
-			expect(shipped.data.order.fulfillment_status).toBe("shipped")
+			expect(shipped.data.order.fulfillment_status).toBe("partially_shipped") // second packet still open
 
 			expect(
 				(
@@ -262,7 +287,20 @@ medusaIntegrationTestRunner({
 				`/admin/orders/${order.id}?fields=fulfillment_status`,
 				store.adminHeaders,
 			)
-			expect(delivered.data.order.fulfillment_status).toBe("delivered")
+			expect(delivered.data.order.fulfillment_status).toBe("partially_delivered")
+
+			// A late/replayed non-terminal event never moves a delivered packet back.
+			expect(
+				(
+					await webhook(
+						{ status: { ...base, eventId: "e3", statusId: 2, statusCode: "arrived", statusText: "late" } },
+						"e3",
+					)
+				).status,
+			).toBe(200)
+			await sleep(300)
+			const stillDelivered = await api.get(`/admin/packeta/packets/${packet.packet_id}`, store.adminHeaders)
+			expect(stillDelivered.data.packet.status.id).toBe(7)
 
 			// Shipped packets can no longer be cancelled.
 			const noCancel = await api
@@ -326,9 +364,31 @@ medusaIntegrationTestRunner({
 			).toBe(200)
 		})
 
-		it("rejects unsigned / tampered webhooks and ignores unknown packets", async () => {
+		it("rejects unsigned / tampered / stale webhooks and ignores unknown packets", async () => {
 			const unsigned = await api.post("/hooks/packeta", { status: { id: 1 } }).catch((e: any) => e.response)
 			expect(unsigned.status).toBe(401)
+			const staleBody = JSON.stringify({
+				status: {
+					eventId: "old",
+					id: 42,
+					barcode: "Z42",
+					dateTime: "2026-01-01T00:00:00",
+					statusId: 2,
+					statusCode: "arrived",
+					statusText: "x",
+				},
+			})
+			const oldTs = String(Math.floor(Date.now() / 1000) - 3600)
+			const stale = await api
+				.post("/hooks/packeta", staleBody, {
+					headers: {
+						"Content-Type": "application/json",
+						"X-Webhook-Timestamp": oldTs,
+						"X-Webhook-Signature": signPacketaWebhook(SIGNING_KEY, oldTs, staleBody),
+					},
+				})
+				.catch((e: any) => e.response)
+			expect(stale.status).toBe(401)
 			const body = JSON.stringify({
 				status: {
 					eventId: "x",

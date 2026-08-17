@@ -45,9 +45,10 @@ export default async function packetaPollStatusJob(container: MedusaContainer) {
 
 export const config = {
 	name: "packeta-poll-status",
-	// Fires every 5 minutes; the job itself applies poll_status_cron
-	// (default every 30 minutes) so the effective cadence is configurable.
-	schedule: "*/5 * * * *",
+	// Fires every minute; the job itself applies `poll_status_cron` (default every
+	// 30 minutes) so any 5-field cron the merchant configures is honoured exactly.
+	// The gate is a cheap in-memory check — no DB work on non-matching minutes.
+	schedule: "* * * * *",
 }
 
 // Minimal 5-field cron matcher (minute hour dom month dow): star, star-slash-n, lists and ranges.

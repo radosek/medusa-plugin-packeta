@@ -12,8 +12,10 @@ Initial release. Tested against Medusa 2.19.0.
   content, dimensions, carrier services, customs declarations for non-EU carriers.
 - Labels: Packeta PDF (all formats), ZPL, carrier PDF/ZPL, bulk PDF; tracking labels on
   the Medusa fulfillment.
-- Push-tracking webhook `/hooks/packeta` (HMAC-SHA256, deduped) + polling job; auto
-  mark shipped/delivered.
+- Push-tracking webhook `/hooks/packeta` (HMAC-SHA256, replay window, deduped, terminal
+  statuses never regress) + polling job; auto mark shipped/delivered.
+- Split shipments: COD collected once (first packet), per-packet insured value and
+  `<order>-n` references.
 - Cancel + idempotent replay; `packeta_packet` module with read-only links to
   fulfillment/order.
 - Admin: order card, `/packeta` page (filters, bulk labels, health), EN/CS.

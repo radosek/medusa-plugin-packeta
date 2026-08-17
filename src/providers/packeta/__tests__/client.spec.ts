@@ -66,6 +66,39 @@ describe("PacketaClient", () => {
 		expect(err.message).toContain("zip: Invalid ZIP")
 	})
 
+	it("reads attribute faults regardless of element order and nesting", async () => {
+		mockFetch(
+			fault(
+				"PacketAttributesFault",
+				"x",
+				"<attributes><fault><fault>Bad phone</fault><name>phone</name></fault></attributes>",
+			),
+		)
+		await expect(client.cancelPacket("1")).rejects.toMatchObject({
+			attributes: [{ name: "phone", fault: "Bad phone" }],
+		})
+		mockFetch(
+			`<response><status>fault</status><fault>PacketIdsFault</fault><string>Invalid ids</string><detail><ids><id>1</id><id>2</id></ids></detail></response>`,
+		)
+		await expect(client.packetsLabelsPdf(["1", "2"], "A6 on A6")).rejects.toMatchObject({
+			attributes: [
+				{ name: "id", fault: "1" },
+				{ name: "id", fault: "2" },
+			],
+		})
+	})
+
+	it("never mistakes a nested <id> for the packet id", async () => {
+		mockFetch(
+			ok(
+				"<courierInfo><courierInfoItem><id>999</id></courierInfoItem></courierInfo><id>4154090000</id><barcode>Z4154090000</barcode>",
+			),
+		)
+		await expect(
+			client.createPacket({ number: "1", name: "A", surname: "B", addressId: "79", value: 1, weight: 1 }),
+		).resolves.toMatchObject({ id: "4154090000" })
+	})
+
 	it("returns base64 label bodies verbatim", async () => {
 		mockFetch(ok("\n  JVBERi0xLjQK  \n"))
 		await expect(client.packetLabelPdf("1", "A6 on A6")).resolves.toBe("JVBERi0xLjQK")

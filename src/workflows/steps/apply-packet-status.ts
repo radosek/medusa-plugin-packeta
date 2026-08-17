@@ -2,7 +2,11 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { PACKETA_MODULE } from "../../modules/packeta"
 import type PacketaModuleService from "../../modules/packeta/service"
+import { statusGroup } from "../../providers/packeta/lib/status"
 import type { CurrentStatusRecord, PacketaPushEvent } from "../../providers/packeta/types"
+
+/** Statuses after which a packet's Packeta status never moves again. */
+const TERMINAL_STATUS_IDS = [7, 10, 11]
 
 export interface ApplyPacketStatusInput {
 	packet_id: string
@@ -96,6 +100,18 @@ export const applyPacketStatusStep = createStep<ApplyPacketStatusInput, PacketSt
 			},
 		}
 
+		// Never let a late/replayed event move a delivered/returned/cancelled packet
+		// back to an earlier state (Packeta retries out of order; webhooks can be replayed).
+		if (
+			record.status_id != null &&
+			TERMINAL_STATUS_IDS.includes(record.status_id) &&
+			statusId != null &&
+			!TERMINAL_STATUS_IDS.includes(statusId)
+		) {
+			if (input.event_id) await service.updatePacketaPackets({ id: record.id, last_event_id: input.event_id })
+			return new StepResponse(noop(record), null)
+		}
+
 		const cancelledNow = statusId === 11 && !record.cancelled_at
 		await service.updatePacketaPackets({
 			id: record.id,
@@ -107,7 +123,9 @@ export const applyPacketStatusStep = createStep<ApplyPacketStatusInput, PacketSt
 			external_status_text: externalText ?? record.external_status_text ?? null,
 			is_returning:
 				status?.isReturning ??
-				(statusId != null && [9, 10, 17, 18, 19, 20, 21, 22].includes(statusId) ? true : record.is_returning),
+				(statusId != null && ["returning", "returned"].includes(statusGroup(statusId))
+					? true
+					: record.is_returning),
 			stored_until: status?.storedUntil ?? record.stored_until ?? null,
 			last_event_id: input.event_id ?? record.last_event_id ?? null,
 			cancelled_at: cancelledNow ? (statusAt ?? new Date()) : record.cancelled_at,

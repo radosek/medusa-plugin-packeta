@@ -12,7 +12,16 @@ import type {
 	StatusRecord,
 } from "../types"
 import { PACKETA_DEFAULTS } from "../types"
-import { buildRequest, readBlock, readBlocks, readFlat, readTag, unescapeXml, type XmlNode } from "./xml"
+import {
+	buildRequest,
+	child,
+	childText,
+	childrenNamed,
+	flat,
+	parseXml,
+	type XmlElement,
+	type XmlNode,
+} from "./xml"
 
 export interface PacketaAttributeFault {
 	name: string
@@ -57,11 +66,7 @@ export class PacketaClient {
 
 	async createPacket(attributes: PacketAttributes): Promise<PacketIdDetail> {
 		const result = await this.call("createPacket", { packetAttributes: attrsToXml(attributes) })
-		return {
-			id: required(readTag(result, "id"), "id"),
-			barcode: readTag(result, "barcode") ?? `Z${readTag(result, "id")}`,
-			barcodeText: readTag(result, "barcodeText"),
-		}
+		return idDetail(result)
 	}
 
 	async packetAttributesValid(attributes: PacketAttributes): Promise<void> {
@@ -75,27 +80,27 @@ export class PacketaClient {
 	/** Base64-encoded PDF. */
 	async packetLabelPdf(packetId: string, format: PacketaLabelFormat, offset = 0): Promise<string> {
 		const result = await this.call("packetLabelPdf", { packetId, format, offset })
-		return result.trim()
+		return result.text.trim()
 	}
 
 	/** Base64-encoded PDF with one label per packet. */
 	async packetsLabelsPdf(packetIds: string[], format: PacketaLabelFormat, offset = 0): Promise<string> {
 		const result = await this.call("packetsLabelsPdf", { packetIds: { id: packetIds }, format, offset })
-		return result.trim()
+		return result.text.trim()
 	}
 
 	/** ZPL label (unescaped, ready to send to the printer). Format A6 (default) or A7 where supported. */
 	async packetLabelZpl(packetId: string, dpi: PacketaZplDpi = 203, format = "A6"): Promise<string> {
 		const result = await this.call("packetLabelZpl", { packetId, format, dpi })
-		return unescapeXml(result.trim())
+		return result.text.trim()
 	}
 
 	/** External carrier's number for a packet (needed for direct carrier labels). */
 	async packetCourierNumberV2(packetId: string): Promise<PacketCourierNumberV2Result> {
 		const result = await this.call("packetCourierNumberV2", { packetId })
-		const f = readFlat(result)
+		const f = flat(result)
 		return {
-			courierNumber: f.courierNumber ?? result.trim(),
+			courierNumber: f.courierNumber ?? result.text.trim(),
 			carrierId: f.carrierId ? Number(f.carrierId) : undefined,
 			carrierName: f.carrierName || undefined,
 		}
@@ -104,7 +109,7 @@ export class PacketaClient {
 	/** Base64 PDF of the external carrier's own label (carrier must be `apiAllowed`). */
 	async packetCourierLabelPdf(packetId: string, courierNumber: string): Promise<string> {
 		const result = await this.call("packetCourierLabelPdf", { packetId, courierNumber })
-		return result.trim()
+		return result.text.trim()
 	}
 
 	/** ZPL of the external carrier's own label. */
@@ -114,18 +119,18 @@ export class PacketaClient {
 		dpi: PacketaZplDpi = 203,
 	): Promise<string> {
 		const result = await this.call("packetCourierLabelZpl", { packetId, courierNumber, dpi })
-		return unescapeXml(result.trim())
+		return result.text.trim()
 	}
 
 	async packetStatus(packetId: string): Promise<CurrentStatusRecord> {
 		const result = await this.call("packetStatus", { packetId })
-		return toCurrentStatus(readFlat(result))
+		return toCurrentStatus(flat(result))
 	}
 
 	async packetTracking(packetId: string): Promise<StatusRecord[]> {
 		const result = await this.call("packetTracking", { packetId })
-		const blocks = readBlocks(result, "record")
-		const flats = blocks.length ? blocks.map(readFlat) : [readFlat(result)].filter((f) => f.statusCode)
+		const records = childrenNamed(result, "record")
+		const flats = records.length ? records.map(flat) : [flat(result)].filter((f) => f.statusCode)
 		return flats.map(toStatus)
 	}
 
@@ -142,24 +147,19 @@ export class PacketaClient {
 				sendEmailToCustomer: attributes.sendEmailToCustomer,
 			},
 		})
-		return {
-			id: required(readTag(result, "id"), "id"),
-			barcode: readTag(result, "barcode") ?? `Z${readTag(result, "id")}`,
-			barcodeText: readTag(result, "barcodeText"),
-			password: readTag(result, "password") ?? "",
-		}
+		return { ...idDetail(result), password: childText(result, "password") ?? "" }
 	}
 
-	/** Raw `<result>` XML for `packetInfo` (courier numbers, tracking urls, consign password). */
-	async packetInfo(packetId: string): Promise<string> {
+	/** Parsed `<result>` of `packetInfo` (courier numbers, tracking urls, consign password). */
+	async packetInfo(packetId: string): Promise<XmlElement> {
 		return this.call("packetInfo", { packetId })
 	}
 
 	/**
-	 * Perform one API call and return the inner XML of `<result>` (empty string
-	 * for void methods). Throws `PacketaError` on `<status>fault</status>`.
+	 * Perform one API call and return the parsed `<result>` element (an empty
+	 * element for void methods). Throws `PacketaError` on `<status>fault</status>`.
 	 */
-	protected async call(method: string, args: XmlNode): Promise<string> {
+	protected async call(method: string, args: XmlNode): Promise<XmlElement> {
 		const body = buildRequest(method, this.apiPassword, args)
 		let res: Response
 		try {
@@ -172,13 +172,16 @@ export class PacketaClient {
 			throw new PacketaError(method, "NetworkError", this.redact((e as Error).message))
 		}
 		const xml = await res.text()
-		const status = readTag(xml, "status")
+		// The envelope is <response><status>…</status>…</response>; read direct
+		// children only so nested payloads can never be mistaken for the envelope.
+		const envelope = parseXml(xml)
+		const status = childText(envelope, "status")
 		if (status === "ok") {
-			return readBlock(xml, "result") ?? ""
+			return child(envelope, "result") ?? { name: "result", children: [], text: "" }
 		}
-		const fault = readTag(xml, "fault") ?? (res.ok ? "UnknownFault" : `HTTP ${res.status}`)
+		const fault = childText(envelope, "fault") ?? (res.ok ? "UnknownFault" : `HTTP ${res.status}`)
 		const message =
-			readTag(xml, "string") ??
+			childText(envelope, "string") ??
 			(xml
 				? xml
 						.replace(/<[^>]+>/g, " ")
@@ -186,7 +189,7 @@ export class PacketaClient {
 						.trim()
 						.slice(0, 300)
 				: res.statusText)
-		const detail = readBlock(xml, "detail") ?? ""
+		const detail = child(envelope, "detail")
 		throw new PacketaError(
 			method,
 			fault,
@@ -202,19 +205,34 @@ export class PacketaClient {
 
 /**
  * `<detail><attributes><fault><name>zip</name><fault>…</fault></fault>…</attributes></detail>`
- * The inner element is also called `fault`, so read name/fault pairs in order
- * instead of nesting-unaware block extraction.
+ * The inner element is also called `fault`; walk the tree so element order and
+ * nesting cannot confuse the reader. `PacketIdsFault` lists bare `<id>` values.
  */
-export function parseAttributeFaults(detail: string): PacketaAttributeFault[] {
+export function parseAttributeFaults(detail: XmlElement | string | undefined): PacketaAttributeFault[] {
+	const el = typeof detail === "string" ? parseXml(`<detail>${detail}</detail>`) : detail
+	if (!el) return []
 	const out: PacketaAttributeFault[] = []
-	const re = /<name>([^<]*)<\/name>\s*<fault>([^<]*)<\/fault>/g
-	let m: RegExpExecArray | null
-	while ((m = re.exec(detail))) out.push({ name: unescapeXml(m[1].trim()), fault: unescapeXml(m[2].trim()) })
+	const attributes = child(el, "attributes") ?? el
+	for (const f of childrenNamed(attributes, "fault")) {
+		const name = childText(f, "name")
+		const fault = childText(f, "fault")
+		if (name || fault) out.push({ name: name ?? "", fault: fault ?? "" })
+	}
 	if (!out.length) {
-		// Some faults (PacketIdsFault) list bare <id> values instead.
-		for (const id of readBlocks(detail, "id")) out.push({ name: "id", fault: unescapeXml(id.trim()) })
+		const ids = child(el, "ids") ?? el
+		for (const id of childrenNamed(ids, "id")) out.push({ name: "id", fault: id.text.trim() })
 	}
 	return out
+}
+
+function idDetail(result: XmlElement): PacketIdDetail {
+	const id = childText(result, "id")
+	if (!id) throw new PacketaError("response", "MalformedResponse", "missing <id> in result")
+	return {
+		id,
+		barcode: childText(result, "barcode") ?? `Z${id}`,
+		barcodeText: childText(result, "barcodeText"),
+	}
 }
 
 function attrsToXml(a: PacketAttributes): XmlNode {
@@ -273,9 +291,4 @@ function toCurrentStatus(f: Record<string, string>): CurrentStatusRecord {
 		carrierId: f.carrierId ? Number(f.carrierId) : undefined,
 		carrierName: f.carrierName || undefined,
 	}
-}
-
-function required(v: string | undefined, name: string): string {
-	if (!v) throw new PacketaError("response", "MalformedResponse", `missing <${name}> in result`)
-	return v
 }

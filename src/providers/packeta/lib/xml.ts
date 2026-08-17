@@ -57,32 +57,77 @@ export function buildRequest(method: string, apiPassword: string, args: XmlNode)
 	return `<?xml version="1.0" encoding="utf-8"?><${method}><apiPassword>${escapeXml(apiPassword)}</apiPassword>${serialiseNode(args)}</${method}>`
 }
 
-/** First text content of `<tag>…</tag>` anywhere in the document (no nesting awareness). */
-export function readTag(xml: string, tag: string): string | undefined {
-	const m = xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, "i"))
-	return m ? unescapeXml(m[1].trim()) : undefined
+/* ------------------------------------------------------------------ */
+/* Nesting-aware reader                                                */
+/* ------------------------------------------------------------------ */
+
+export interface XmlElement {
+	name: string
+	children: XmlElement[]
+	/** Concatenated, unescaped text content of this element (excluding children). */
+	text: string
 }
 
-/** Raw inner XML of the first `<tag>` (nested content kept). */
-export function readBlock(xml: string, tag: string): string | undefined {
-	const m = xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, "i"))
-	return m ? m[1] : undefined
-}
-
-/** All occurrences of a repeated `<tag>` block (raw inner XML). */
-export function readBlocks(xml: string, tag: string): string[] {
-	const re = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, "gi")
-	const out: string[] = []
+/**
+ * Parse an XML document into an element tree. Handles declarations, comments,
+ * CDATA, self-closing tags and entities; attributes are ignored (Packeta's API
+ * carries no data in attributes). Returns the root element or `null`.
+ */
+export function parseXml(xml: string): XmlElement | null {
+	const stack: XmlElement[] = []
+	let root: XmlElement | null = null
+	const re =
+		/<!\[CDATA\[([\s\S]*?)\]\]>|<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<!DOCTYPE[^>]*>|<\/([A-Za-z_][\w.:-]*)\s*>|<([A-Za-z_][\w.:-]*)(?:\s[^>]*?)?(\/?)>|([^<]+)/g
 	let m: RegExpExecArray | null
-	while ((m = re.exec(xml))) out.push(m[1])
-	return out
+	while ((m = re.exec(xml))) {
+		const [, cdata, close, open, selfClose, text] = m
+		const top = stack[stack.length - 1]
+		if (cdata !== undefined) {
+			if (top) top.text += cdata
+		} else if (close) {
+			if (top && top.name === close) stack.pop()
+		} else if (open) {
+			const el: XmlElement = { name: open, children: [], text: "" }
+			if (top) top.children.push(el)
+			else if (!root) root = el
+			if (!selfClose) stack.push(el)
+		} else if (text !== undefined) {
+			if (top) top.text += unescapeXml(text)
+		}
+	}
+	return root
 }
 
-/** Text of every direct-ish child of a flat block, e.g. a StatusRecord. */
-export function readFlat(block: string): Record<string, string> {
+/** First direct child with the given name. */
+export function child(el: XmlElement | null | undefined, name: string): XmlElement | undefined {
+	return el?.children.find((c) => c.name === name)
+}
+
+/** All direct children with the given name. */
+export function childrenNamed(el: XmlElement | null | undefined, name: string): XmlElement[] {
+	return el?.children.filter((c) => c.name === name) ?? []
+}
+
+/** Text of a direct child, trimmed; `undefined` when absent. */
+export function childText(el: XmlElement | null | undefined, name: string): string | undefined {
+	const c = child(el, name)
+	return c ? c.text.trim() : undefined
+}
+
+/** Depth-first search for the first element with the given name (including `el` itself). */
+export function findFirst(el: XmlElement | null | undefined, name: string): XmlElement | undefined {
+	if (!el) return undefined
+	if (el.name === name) return el
+	for (const c of el.children) {
+		const hit = findFirst(c, name)
+		if (hit) return hit
+	}
+	return undefined
+}
+
+/** `{ childName: text }` for every direct child that has no children of its own. */
+export function flat(el: XmlElement | null | undefined): Record<string, string> {
 	const out: Record<string, string> = {}
-	const re = /<([A-Za-z_][\w-]*)(?:\s[^>]*)?>([^<]*)<\/\1>/g
-	let m: RegExpExecArray | null
-	while ((m = re.exec(block))) out[m[1]] = unescapeXml(m[2].trim())
+	for (const c of el?.children ?? []) if (!c.children.length) out[c.name] = c.text.trim()
 	return out
 }

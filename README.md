@@ -88,7 +88,8 @@ The provider is registered as **`packeta_packeta`**. In the admin: *Settings →
 | `feed_ttl_s` | no | `86400` | Carrier feed cache TTL. |
 | `validate_pickup_point` | no | `true` | Validate the chosen point through Packeta at checkout. |
 | `webhook_signing_key` | no | — | Push-tracking signing key. Without it the webhook answers 503. |
-| `allow_unsigned_webhook` | no | `false` | Accept unsigned webhooks (local development only). |
+| `allow_unsigned_webhook` | no | `false` | Accept unsigned webhooks (local development only; ignored in production). |
+| `webhook_tolerance_s` | no | `300` | Max age of a webhook timestamp before it is treated as a replay. |
 | `tracking_url` | no | `https://tracking.packeta.com/cs/?id={barcode}` | `{barcode}` / `{id}` placeholders. |
 | `auto_ship_status_ids` | no | `[2,3,4,5,6,12]` | Packeta status ids that mark the fulfillment shipped. |
 | `auto_deliver_status_ids` | no | `[7]` | Status ids that mark it delivered. |
@@ -185,11 +186,13 @@ Packeta enables webhooks per account: e-mail **integrations@packeta.com** with y
 https://<your-backend>/hooks/packeta
 ```
 
-and they issue a **signing key** → `webhook_signing_key`. Requests are verified with `HMAC-SHA256(key, "{X-Webhook-Timestamp}.{rawBody}")` in constant time; unsigned or tampered requests get 401, unknown packets 200 (so Packeta stops retrying). Until the key is configured, the polling job keeps statuses fresh.
+and they issue a **signing key** → `webhook_signing_key`. Requests are verified with `HMAC-SHA256(key, "{X-Webhook-Timestamp}.{rawBody}")` in constant time and the timestamp must be within `webhook_tolerance_s` (5 min) of the server clock — unsigned, tampered or replayed requests get 401, unknown packets 200 (so Packeta stops retrying). Events are deduplicated by `X-Webhook-Event-Id`, and a late/replayed event can never move a delivered / returned / cancelled packet backwards. Until the key is configured, the polling job (every 30 min by default, `poll_status_cron`) keeps statuses fresh. `allow_unsigned_webhook` is for local development only and is ignored when `NODE_ENV=production`.
 
 ## Cash on delivery
 
-COD is applied when the order's payment provider is in `cod_payment_providers` (default: Medusa's manual `pp_system_default`). The admin "Create packet" drawer shows the detected state and lets you override amount/off. Carriers with `disallowsCod` reject COD packets with a clear error.
+COD is applied when the order's payment provider is in `cod_payment_providers` (default: Medusa's manual `pp_system_default`): `order.metadata.packeta_cod` is set to `true` at `order.placed`. The admin "Create packet" drawer shows the detected state and lets you override amount/off. Carriers with `disallowsCod` reject COD packets with a clear error.
+
+**Split shipments** (several packets per order, from the drawer or native partial fulfillments): the customer pays the order **once** — the first packet carries the full COD, after which the flag flips to `"collected"` (with `packeta_cod_barcode`) and every later packet is created with COD 0 unless you pass `cod_amount` explicitly. Each packet is insured for the value of the items it carries (plus shipping on the first one) and follow-up packets get a `<order>-2`, `<order>-3` reference.
 
 ## Customs (non-EU)
 

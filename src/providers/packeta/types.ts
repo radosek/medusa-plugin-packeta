@@ -27,8 +27,10 @@ export interface PacketaOptions {
 	validate_pickup_point?: boolean
 	/** Signing key issued by Packeta for push tracking. Webhook rejects unsigned requests without it. */
 	webhook_signing_key?: string
-	/** Accept unsigned webhooks (development only). Default false. */
+	/** Accept unsigned webhooks (development only; refused when NODE_ENV=production). Default false. */
 	allow_unsigned_webhook?: boolean
+	/** Max age of a webhook timestamp in seconds before it is rejected as a replay. Default 300. */
+	webhook_tolerance_s?: number
 	/** Tracking URL template. `{barcode}` and `{id}` placeholders. */
 	tracking_url?: string
 	/** Packeta status ids that mark the Medusa fulfillment as shipped. Default [2,3,4,5,6,12]. */
@@ -100,6 +102,7 @@ export const PACKETA_DEFAULTS = {
 	feed_ttl_s: 86400,
 	validate_pickup_point: true,
 	allow_unsigned_webhook: false,
+	webhook_tolerance_s: 300,
 	tracking_url: "https://tracking.packeta.com/cs/?id={barcode}",
 	auto_ship_status_ids: [2, 3, 4, 5, 6, 12],
 	auto_deliver_status_ids: [7],
@@ -259,6 +262,8 @@ export interface PacketaPacketData extends PacketaFulfillmentData {
 export interface PacketaAdditionalData {
 	cod?: boolean
 	cod_amount?: number
+	/** Insured value of this packet (defaults to the order total). */
+	value?: number
 	weight_kg?: number
 	note?: string
 	eshop?: string

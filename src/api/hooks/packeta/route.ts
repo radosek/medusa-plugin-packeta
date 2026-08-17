@@ -21,9 +21,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 	const rawBody = raw ?? JSON.stringify(req.body ?? {})
 
 	if (options.webhook_signing_key) {
+		const timestamp = header(req, "x-webhook-timestamp")
+		if (!isFresh(timestamp, options.webhook_tolerance_s)) {
+			res.status(401).json({ message: "stale or missing timestamp" })
+			return
+		}
 		const ok = verifyPacketaSignature(
 			options.webhook_signing_key,
-			header(req, "x-webhook-timestamp"),
+			timestamp,
 			header(req, "x-webhook-signature"),
 			rawBody,
 		)
@@ -31,6 +36,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 			res.status(401).json({ message: "invalid signature" })
 			return
 		}
+	} else if (options.allow_unsigned_webhook && process.env.NODE_ENV === "production") {
+		logger.error(
+			"Packeta webhook: `allow_unsigned_webhook` is ignored in production; configure `webhook_signing_key`.",
+		)
+		res.status(503).json({ message: "webhook signing key not configured" })
+		return
 	} else if (!options.allow_unsigned_webhook) {
 		logger.warn(
 			"Packeta webhook received but `webhook_signing_key` is not configured; rejecting. Set `allow_unsigned_webhook: true` for local testing.",
@@ -80,4 +91,11 @@ function safeJson(raw: string | Buffer): unknown {
 	} catch {
 		return null
 	}
+}
+
+/** Reject timestamps outside ±tolerance (replay protection); the signature covers the timestamp. */
+function isFresh(timestamp: string | undefined, toleranceS: number): boolean {
+	const ts = Number(timestamp)
+	if (!timestamp || !Number.isFinite(ts)) return false
+	return Math.abs(Date.now() / 1000 - ts) <= toleranceS
 }

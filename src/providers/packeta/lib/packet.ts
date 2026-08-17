@@ -91,6 +91,8 @@ export function decideCod(
 		return { cod: round2(additional.cod_amount), source: "additional_data" }
 	}
 	if (additional?.cod === true) return { cod: round2(orderTotal), source: "additional_data" }
+	// `packeta_cod` is `true` until the first COD packet exists; the recordPacket
+	// workflow then flips it to "collected" so split shipments never charge twice.
 	const meta = (order?.metadata ?? {}) as Record<string, unknown>
 	if (meta.packeta_cod === true || meta.packeta_cod === "true")
 		return { cod: round2(orderTotal), source: "order_metadata" }
@@ -147,7 +149,9 @@ export function buildPacketAttributes(input: BuildPacketInput): BuiltPacket {
 		: currencyForCountry(country, orderCurrency || "CZK")
 
 	const total = num((order as { total?: unknown } | undefined)?.total)
-	const value = round2(total > 0 ? total : 1)
+	const explicitValue =
+		typeof additional?.value === "number" && additional.value > 0 ? additional.value : undefined
+	const value = round2(explicitValue ?? (total > 0 ? total : 1))
 	const cod = decideCod(order, additional, total)
 	const weightKg =
 		typeof additional?.weight_kg === "number" && additional.weight_kg > 0

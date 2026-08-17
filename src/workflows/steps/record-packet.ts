@@ -67,6 +67,7 @@ export const recordPacketStep = createStep<RecordPacketStepInput, PacketRow | nu
 		} catch (e) {
 			// The subscriber and the admin workflow can race on the same fulfillment;
 			// the unique index on packet_id makes the loser fall through to an update.
+			if (!isUniqueViolation(e)) throw e
 			const [raced] = await service.listPacketaPackets({ packet_id: d.packet_id }, { take: 1 })
 			if (!raced) throw e
 			const updated = (await service.updatePacketaPackets({ id: raced.id, ...row })) as unknown as PacketRow
@@ -115,4 +116,10 @@ async function ensureLabel(
 			`Packeta: could not attach tracking label to fulfillment ${input.fulfillment_id}: ${(e as Error).message}`,
 		)
 	}
+}
+
+function isUniqueViolation(e: unknown): boolean {
+	const err = e as { code?: string; message?: string; cause?: { code?: string } }
+	const code = err?.code ?? err?.cause?.code
+	return code === "23505" || /unique|duplicate key/i.test(err?.message ?? "")
 }
