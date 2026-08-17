@@ -8,12 +8,20 @@ set -euo pipefail
 APP="${1:?usage: dev-install.sh <medusa-app-dir>}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$HERE"
-bunx medusa plugin:build
+NODE_ENV=production bunx medusa plugin:build
 OUT="$(mktemp -d)"
 bun pm pack --ignore-scripts --destination "$OUT" >/dev/null
 TGZ="$(ls "$OUT"/*.tgz)"
 cd "$APP"
-if [ -f bun.lock ] || [ -f bun.lockb ]; then
+# Detect the package manager from the nearest lockfile (workspaces keep it at the root).
+uses_bun=0
+dir="$PWD"
+for _ in 1 2 3 4; do
+	if [ -f "$dir/bun.lock" ] || [ -f "$dir/bun.lockb" ]; then uses_bun=1; break; fi
+	[ -f "$dir/package-lock.json" ] && break
+	dir="$(dirname "$dir")"
+done
+if [ "$uses_bun" = 1 ]; then
 	bun remove medusa-plugin-packeta >/dev/null 2>&1 || true
 	bun add "$TGZ"
 else

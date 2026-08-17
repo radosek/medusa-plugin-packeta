@@ -51,9 +51,9 @@
 		"./*": "./.medusa/server/src/*.js"
 	},
 	"scripts": {
-		"build": "medusa plugin:build",
+		"build": "NODE_ENV=production medusa plugin:build",
 		"watch": "medusa plugin:develop",
-		"plugin:build": "medusa plugin:build",
+		"plugin:build": "NODE_ENV=production medusa plugin:build",
 		"plugin:develop": "medusa plugin:develop",
 		"plugin:publish": "medusa plugin:publish",
 		"plugin:db:generate": "medusa plugin:db:generate",
