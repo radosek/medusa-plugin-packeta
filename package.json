@@ -29,7 +29,8 @@
 	},
 	"files": [
 		".medusa/server",
-		"!.medusa/server/src/**/__tests__"
+		"!.medusa/server/src/**/__tests__",
+		"LICENSE"
 	],
 	"type": "commonjs",
 	"exports": {

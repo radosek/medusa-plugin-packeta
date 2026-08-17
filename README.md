@@ -227,4 +227,6 @@ Try it inside a Medusa app without publishing: `scripts/dev-install.sh <path-to-
 
 ## License
 
-MIT — Radoš. Unofficial integration, not affiliated with Packeta s.r.o.
+MIT
+
+This project is an independent, unofficial integration and is not affiliated with or endorsed by Packeta s.r.o. / Zásilkovna s.r.o. All Packeta and Zásilkovna trademarks and logos are the property of their respective owners.
