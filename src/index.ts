@@ -1,0 +1,6 @@
+export { PacketaProviderService } from "./providers/packeta/service"
+export { PacketaClient, PacketaError } from "./providers/packeta/lib/client"
+export { PacketaFeed } from "./providers/packeta/lib/feed"
+export { validatePickupPoint } from "./providers/packeta/lib/widget-validate"
+export { statusMeta, statusGroup, PACKETA_STATUSES } from "./providers/packeta/lib/status"
+export * from "./providers/packeta/types"
