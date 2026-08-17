@@ -179,7 +179,7 @@ workflows/subscribers/API routes (InPost pattern). The provider service is pure
 | `widget_validate_url` | no | `https://widget.packeta.com/v6/pps/api/widget/v1/validate` | |
 
 Module options for `modules/packeta` are not needed; workflows resolve the
-provider service via `fp_packeta_packeta` from the fulfillment module? No —
+provider service via `packeta_packeta` from the fulfillment module? No —
 provider instances are inside the fulfillment module container and not
 resolvable from the app container. Instead the **plugin options are declared
 once** in `medusa-config.ts` under the fulfillment provider, and again for the
@@ -191,7 +191,7 @@ exposes `getClient()`, `getOptions()`).
 
 ## Provider behaviour
 
-- `static identifier = "packeta"` → provider id `fp_packeta_packeta`.
+- `static identifier = "packeta"` → provider id `packeta_packeta`.
 - `validateOptions`: required options + api_password shape.
 - `getFulfillmentOptions()`:
   - `packeta-pickup` — "Packeta pickup point (all)"
