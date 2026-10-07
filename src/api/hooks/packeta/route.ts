@@ -3,14 +3,16 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { PACKETA_MODULE } from "../../../modules/packeta"
 import type PacketaModuleService from "../../../modules/packeta/service"
 import type { PacketaPushEvent } from "../../../providers/packeta/types"
-import { syncPacketStatusWorkflow } from "../../../workflows/sync-packet-status"
+import { syncPacketStatus } from "../../../workflows/sync-packet-status"
 import { verifyPacketaSignature } from "../../lib/webhook"
 
 /**
  * Packeta push-tracking webhook. Register this URL with integrations@packeta.com;
  * they issue the signing key (`webhook_signing_key`). Packeta retries anything
- * that is not 200/202, so after authentication we always answer 200 — a packet
- * we do not know is logged, not retried forever.
+ * that is not 200/202: a packet we do not know is acked with 200 (not retried
+ * forever), a failure storing a known packet's status answers 500 so it is redelivered.
+ * The status is stored before the fulfillment is marked shipped / delivered; a
+ * permanently rejected side effect is logged and acked, a transient one answers 500.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 	const logger = req.scope.resolve("logger")
@@ -66,15 +68,41 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 	const packetId = String(payload.id ?? String(payload.barcode).replace(/^Z/i, ""))
 	const eventId = header(req, "x-webhook-event-id") ?? payload.eventId
 
+	let result: Awaited<ReturnType<typeof syncPacketStatus>>
 	try {
-		await syncPacketStatusWorkflow(req.scope).run({
-			input: { packet_id: packetId, event: event as PacketaPushEvent, event_id: eventId },
+		result = await syncPacketStatus(req.scope, {
+			packet_id: packetId,
+			event: event as PacketaPushEvent,
+			event_id: eventId,
 		})
 	} catch (e) {
-		if (e instanceof MedusaError && e.type === MedusaError.Types.NOT_FOUND) {
+		if (medusaErrorType(e) === MedusaError.Types.NOT_FOUND) {
 			logger.info(`Packeta webhook: unknown packet ${packetId}, ignoring.`)
+			res.status(200).json({ received: true })
+			return
+		}
+		logger.error(`Packeta webhook: failed to store status for packet ${packetId}: ${errorMessage(e)}`)
+		res.status(500).json({ message: "failed to apply status" })
+		return
+	}
+
+	if (result.effectsError) {
+		const e = result.effectsError
+		const message = `Packeta webhook: status stored for packet ${packetId}, fulfillment update failed: ${errorMessage(e)}`
+		const type = medusaErrorType(e)
+		if (
+			type === MedusaError.Types.INVALID_DATA ||
+			type === MedusaError.Types.NOT_ALLOWED ||
+			type === MedusaError.Types.NOT_FOUND
+		) {
+			// Permanent (e.g. order cancelled): a redelivery would fail the same way.
+			logger.error(message)
 		} else {
-			logger.error(`Packeta webhook: failed to apply status for packet ${packetId}: ${(e as Error).message}`)
+			// Clear the dedupe marker so the redelivered event re-runs the side effect.
+			await packeta.updatePacketaPackets({ id: result.decision.packet_record_id, last_event_id: null })
+			logger.error(message)
+			res.status(500).json({ message: "failed to update fulfillment" })
+			return
 		}
 	}
 	res.status(200).json({ received: true })
@@ -98,4 +126,14 @@ function isFresh(timestamp: string | undefined, toleranceS: number): boolean {
 	const ts = Number(timestamp)
 	if (!timestamp || !Number.isFinite(ts)) return false
 	return Math.abs(Date.now() / 1000 - ts) <= toleranceS
+}
+
+// Workflow errors arrive serialized (plain objects), so `instanceof MedusaError` never
+// matches; `isMedusaError` checks the flag that survives serialization.
+function medusaErrorType(e: unknown): string | undefined {
+	return e != null && MedusaError.isMedusaError(e) ? (e as { type?: string }).type : undefined
+}
+
+function errorMessage(e: unknown): string {
+	return String((e as Error)?.message ?? e)
 }

@@ -1,7 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { PACKETA_MODULE } from "../modules/packeta"
 import type PacketaModuleService from "../modules/packeta/service"
-import { syncPacketStatusWorkflow } from "../workflows/sync-packet-status"
+import { syncPacketStatus } from "../workflows/sync-packet-status"
 
 /** Terminal statuses that never change again — skip them. */
 const TERMINAL = [7, 10, 11]
@@ -36,7 +36,12 @@ export default async function packetaPollStatusJob(container: MedusaContainer) {
 	for (const p of packets) {
 		try {
 			// eslint-disable-next-line no-await-in-loop
-			await syncPacketStatusWorkflow(container).run({ input: { packet_id: p.packet_id } })
+			const { effectsError } = await syncPacketStatus(container, { packet_id: p.packet_id })
+			if (effectsError) {
+				logger.warn(
+					`Packeta poll: ${p.barcode} status stored, fulfillment update failed: ${(effectsError as Error).message}`,
+				)
+			}
 			ok++
 		} catch (e) {
 			logger.warn(`Packeta poll: ${p.barcode} failed: ${(e as Error).message}`)

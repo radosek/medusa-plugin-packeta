@@ -16,7 +16,7 @@
 
 - **Fulfillment options**: `packeta-pickup` (any Packeta / partner pickup point chosen in the widget), `packeta-home-delivery` (Packeta home-delivery carrier picked from the shipping country), `packeta-return`, and — optionally — one option per carrier from Packeta's live carrier feed (`packeta-carrier-<id>`), so you can price Z-BOX, PPL ParcelShop, InPost, DHL … separately.
 - **Checkout validation**: the selected pickup point is re-validated server-side against Packeta's widget validate endpoint (exists, allowed for your account, currently accepting packets).
-- **Packets**: `createPacket` on fulfillment with COD, insured value, weight from variant weights, note, earliest delivery date, adult content, dimensions, carrier services, customs declarations for non-EU carriers.
+- **Packets**: `createPacket` on fulfillment with COD, insured value, weight from variant weights (product weight as fallback), note, earliest delivery date, adult content, dimensions, carrier services, customs declarations for non-EU carriers.
 - **COD** decided automatically from the order's payment provider (`pp_system_default` by default), overridable per packet in the admin.
 - **Labels**: Packeta PDF (all formats), ZPL (203/300 dpi), external carrier PDF/ZPL, bulk PDF for many packets. Tracking number + label link attached to the Medusa fulfillment.
 - **Tracking**: signed push-tracking webhook (`/hooks/packeta`) + a polling job fallback; statuses mark the Medusa fulfillment shipped / delivered automatically.
@@ -82,8 +82,8 @@ The provider is registered as **`packeta_packeta`**. In the admin: *Settings →
 | `api_key` | yes | — | API key used by the carrier feed, the widget and the widget validate endpoint. |
 | `eshop` | yes | — | Sender indication. Use a dedicated test sender while integrating — Packeta has no sandbox. |
 | `cod_payment_providers` | no | `["pp_system_default"]` | Payment provider ids that mean cash on delivery. |
-| `default_weight_kg` | no | `0.5` | Packet weight when the order has no variant weights. |
-| `packaging_weight_g` | no | `100` | Added to the summed variant weights (grams). |
+| `default_weight_kg` | no | `0.5` | Packet weight when no line has a variant or product weight. |
+| `packaging_weight_g` | no | `100` | Added to the summed line weights (grams). |
 | `label_format` | no | `"A6 on A6"` | `A6 on A6`, `A7 on A7`, `A6 on A4`, `A7 on A4`, `105x35mm on A4`, `A8 on A8`. |
 | `expose_carriers` | no | `true` | Add one fulfillment option per carrier from the feed. |
 | `enabled_carriers` | no | `"all"` | Carrier ids to expose (`["106", "3060"]`) or `"all"`. |
@@ -180,6 +180,19 @@ The `data` contract (what `pointToShippingMethodData` produces) if you drive the
 5. **Cancel** — before hand-over, `cancelPacket` at Packeta and the fulfillment is cancelled in Medusa. Afterwards Packeta refuses (`CancelNotAllowedFault`) and so does the plugin.
 6. **Returns** — a return shipping option using `packeta-return` creates a claim-assistant packet (`createPacketClaimWithPassword`); the customer drops it at any pickup point with the password shown in the admin (Packeta e-mails it too when the return has an e-mail).
 
+### Storefront contract (driving the widget yourself)
+
+When you don't use `pointToShippingMethodData`, map the widget v6 `point` object exactly like this, or the packet goes to the wrong destination:
+
+| Widget `point` | Shipping-method `data` | Notes |
+|---|---|---|
+| `pickupPointType === "internal"` (Z-Point, Z-BOX) | `point_id: String(point.id)` | Required. Becomes `addressId` in `createPacket`. |
+| `pickupPointType === "external"` (partner PUDO) | `carrier_id: String(point.carrierId)`, `carrier_pickup_point_id: String(point.carrierPickupPointId)` | Both required; **do not** send `point.id` as `point_id` for these — it is not a Packeta point and the packet would be rejected or misrouted. Sent as `addressId` + `carrierPickupPoint`. |
+| `name`/`nameStreet`, `street`, `city`, `zip`, `country`, `group` | `point: { name, street, city, zip, country (lowercase), group, type }` | Display snapshot only (admin card, order e-mails). Validated server-side and filled from Packeta when `validate_pickup_point` is on. |
+| — | `note` (optional) | Packet note, max 128 chars, `"` and `;` stripped. |
+
+Also required on the cart: a shipping address with `country_code` (picks the region and, for home delivery, the carrier), customer `email`, and a `phone` on the shipping address — Packeta notifies the recipient by e-mail/SMS. For a pickup point, setting the cart shipping address to the point's address is fine; the packet destination comes from `data`, never from the address. Home delivery needs nothing in `data`: the cart's `address_1` / `address_2` (house number), `city`, `postal_code` and `country_code` are used and the carrier is resolved from the live feed for the country.
+
 ## Push tracking (webhook)
 
 Packeta enables webhooks per account: e-mail **integrations@packeta.com** with your HTTPS URL
@@ -188,7 +201,7 @@ Packeta enables webhooks per account: e-mail **integrations@packeta.com** with y
 https://<your-backend>/hooks/packeta
 ```
 
-and they issue a **signing key** → `webhook_signing_key`. Requests are verified with `HMAC-SHA256(key, "{X-Webhook-Timestamp}.{rawBody}")` in constant time and the timestamp must be within `webhook_tolerance_s` (5 min) of the server clock — unsigned, tampered or replayed requests get 401, unknown packets 200 (so Packeta stops retrying). Events are deduplicated by `X-Webhook-Event-Id`, and a late/replayed event can never move a delivered / returned / cancelled packet backwards. Until the key is configured, the polling job (every 30 min by default, `poll_status_cron`) keeps statuses fresh. `allow_unsigned_webhook` is for local development only and is ignored when `NODE_ENV=production`.
+and they issue a **signing key** → `webhook_signing_key`. Requests are verified with `HMAC-SHA256(key, "{X-Webhook-Timestamp}.{rawBody}")` in constant time and the timestamp must be within `webhook_tolerance_s` (5 min) of the server clock — unsigned, tampered or replayed requests get 401, unknown packets get 200 (so Packeta stops retrying), and a failure storing a known packet's status answers 500 so Packeta redelivers it. The status is stored before the fulfillment is marked shipped / delivered, so a rejected fulfillment update never loses it: a permanent rejection (`INVALID_DATA` / `NOT_ALLOWED` / `NOT_FOUND`, e.g. a cancelled order) is logged with 200, a transient one answers 500 and the event is re-run on redelivery. The pull job and the admin *Refresh* button use the same split (`syncPacketStatus` in `medusa-plugin-packeta/workflows`). Events are deduplicated by `X-Webhook-Event-Id`, and a late/replayed event can never move a delivered / returned / cancelled packet backwards. Until the key is configured, the polling job (every 30 min by default, `poll_status_cron`) keeps statuses fresh. `allow_unsigned_webhook` is for local development only and is ignored when `NODE_ENV=production`.
 
 ## Cash on delivery
 
@@ -203,7 +216,7 @@ For carriers flagged `customsDeclarations` in the feed the plugin sends `attribu
 ## Storefront-agnostic notes
 
 - Provider id: `packeta_packeta`; fulfillment option ids: `packeta-pickup`, `packeta-home-delivery`, `packeta-return`, `packeta-carrier-<id>`.
-- Weight: Medusa variant `weight` is treated as **grams**.
+- Weight: Medusa variant / product `weight` is treated as **grams**; the variant wins, the product weight is the fallback. The admin **Create packet** flow resolves both. Medusa's native *Create fulfillment* only loads `variant.weight`, so set weights on variants (or use the Packeta drawer) if you rely on that flow.
 - Amounts: Medusa v2 major units map 1:1 to Packeta `value`/`cod`. Currencies other than CZK/EUR/HUF/PLN/RON fall back to the destination country's currency.
 - Phone numbers must be in Packeta's accepted formats (E.164 recommended).
 

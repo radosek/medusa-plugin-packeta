@@ -1,5 +1,7 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { signPacketaWebhook } from "../../src/api/lib/webhook"
+import { PACKETA_MODULE } from "../../src/modules/packeta"
+import type PacketaModuleService from "../../src/modules/packeta/service"
 import { placeOrder, seedStore, sleep, type Store } from "../helpers"
 import { startMockPacketa, type MockPacketa } from "../mock-packeta"
 
@@ -307,6 +309,39 @@ medusaIntegrationTestRunner({
 				.post(`/admin/packeta/packets/${packet.packet_id}/cancel`, {}, store.adminHeaders)
 				.catch((e: any) => e.response)
 			expect(noCancel.status).toBe(400)
+		})
+
+		it("keeps a pushed status when the fulfillment update is rejected", async () => {
+			const order = await placeOrder(api, store, {
+				option_id: store.pickupOptionId,
+				data: { point_id: "79", point: { name: "Praha 4", country: "cz" } },
+			})
+			await sleep(1500)
+			const created = await api.post(`/admin/packeta/orders/${order.id}/packet`, {}, store.adminHeaders)
+			const packet = created.data.packet
+
+			// Point the record at an order that no longer exists: the ship step is rejected.
+			const packeta = getContainer().resolve<PacketaModuleService>(PACKETA_MODULE)
+			const [record] = await packeta.listPacketaPackets({ packet_id: packet.packet_id }, { take: 1 })
+			await packeta.updatePacketaPackets({ id: record.id, order_id: "order_missing" })
+
+			const res = await webhook(
+				{
+					status: {
+						id: Number(packet.packet_id),
+						barcode: packet.barcode,
+						dateTime: "2026-01-02T10:00:00",
+						eventId: "r1",
+						statusId: 2,
+						statusCode: "arrived",
+						statusText: "x",
+					},
+				},
+				"r1",
+			)
+			expect(res.status).toBe(200)
+			const after = await api.get(`/admin/packeta/packets/${packet.packet_id}`, store.adminHeaders)
+			expect(after.data.packet.status.id).toBe(2)
 		})
 
 		it("creates a home-delivery packet from the native fulfillment flow and cancels it", async () => {
