@@ -284,6 +284,7 @@ export function buildCustoms(
 						hs_code?: string | null
 						origin_country?: string | null
 						product?: {
+							weight?: number | null
 							hs_code?: string | null
 							origin_country?: string | null
 							title?: string | null
@@ -322,7 +323,7 @@ export function buildCustoms(
 		if (!line) continue
 		const units = num(it.quantity) || num(line.quantity) || 1
 		const unit = num(line.unit_price)
-		const w = num(line.variant?.weight)
+		const w = num(line.variant?.weight) || num(line.variant?.product?.weight)
 		const weightKg = w > 0 ? round2((w * units) / 1000) : null
 		if (weightKg) knownWeight += weightKg
 		perItem.push({

@@ -108,10 +108,20 @@ describe("webhook route status application", () => {
 	})
 
 	it("acks an unknown packet with 200 so Packeta stops retrying", async () => {
-		runSync.mockRejectedValue(new MedusaError(MedusaError.Types.NOT_FOUND, "nope"))
+		// What a failed workflow step rethrows: a serialized MedusaError, not an instance.
+		runSync.mockRejectedValue({ __isMedusaError: true, type: MedusaError.Types.NOT_FOUND, message: "nope" })
 		const r = res()
 		await POST(signed(), r)
 		expect(r.statusCode).toBe(200)
+	})
+
+	it("acks a permanently invalid status with 200 and logs it", async () => {
+		runSync.mockRejectedValue({ __isMedusaError: true, type: MedusaError.Types.INVALID_DATA, message: "bad" })
+		const r = res()
+		const q = signed()
+		await POST(q, r)
+		expect(r.statusCode).toBe(200)
+		expect(q.logger.error).toHaveBeenCalled()
 	})
 
 	it("answers 500 when applying a known packet's status fails, so Packeta redelivers", async () => {

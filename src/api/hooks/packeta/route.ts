@@ -71,13 +71,21 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 			input: { packet_id: packetId, event: event as PacketaPushEvent, event_id: eventId },
 		})
 	} catch (e) {
-		if (!(e instanceof MedusaError && e.type === MedusaError.Types.NOT_FOUND)) {
+		// Workflow errors arrive serialized (plain objects), so `instanceof` never
+		// matches; `isMedusaError` checks the flag that survives serialization.
+		const type = MedusaError.isMedusaError(e) ? (e as { type?: string }).type : undefined
+		const message = (e as Error).message
+		if (type === MedusaError.Types.NOT_FOUND) {
+			logger.info(`Packeta webhook: unknown packet ${packetId}, ignoring.`)
+		} else if (type === MedusaError.Types.INVALID_DATA || type === MedusaError.Types.NOT_ALLOWED) {
+			// Permanent: a redelivery would fail the same way forever.
+			logger.error(`Packeta webhook: rejected status for packet ${packetId}: ${message}`)
+		} else {
 			// Answer non-2xx so Packeta redelivers instead of the status being lost.
-			logger.error(`Packeta webhook: failed to apply status for packet ${packetId}: ${(e as Error).message}`)
+			logger.error(`Packeta webhook: failed to apply status for packet ${packetId}: ${message}`)
 			res.status(500).json({ message: "failed to apply status" })
 			return
 		}
-		logger.info(`Packeta webhook: unknown packet ${packetId}, ignoring.`)
 	}
 	res.status(200).json({ received: true })
 }
