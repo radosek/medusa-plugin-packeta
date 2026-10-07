@@ -9,8 +9,8 @@ import { verifyPacketaSignature } from "../../lib/webhook"
 /**
  * Packeta push-tracking webhook. Register this URL with integrations@packeta.com;
  * they issue the signing key (`webhook_signing_key`). Packeta retries anything
- * that is not 200/202, so after authentication we always answer 200 — a packet
- * we do not know is logged, not retried forever.
+ * that is not 200/202: a packet we do not know is acked with 200 (not retried
+ * forever), a failure applying a known packet's status answers 500 so it is redelivered.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 	const logger = req.scope.resolve("logger")
@@ -71,11 +71,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 			input: { packet_id: packetId, event: event as PacketaPushEvent, event_id: eventId },
 		})
 	} catch (e) {
-		if (e instanceof MedusaError && e.type === MedusaError.Types.NOT_FOUND) {
-			logger.info(`Packeta webhook: unknown packet ${packetId}, ignoring.`)
-		} else {
+		if (!(e instanceof MedusaError && e.type === MedusaError.Types.NOT_FOUND)) {
+			// Answer non-2xx so Packeta redelivers instead of the status being lost.
 			logger.error(`Packeta webhook: failed to apply status for packet ${packetId}: ${(e as Error).message}`)
+			res.status(500).json({ message: "failed to apply status" })
+			return
 		}
+		logger.info(`Packeta webhook: unknown packet ${packetId}, ignoring.`)
 	}
 	res.status(200).json({ received: true })
 }

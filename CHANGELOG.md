@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.2
+
+- Packet weight falls back to the **product** weight when a variant has none. The admin
+  "Create packet" workflow now loads `items.variant.product.weight` (Medusa's
+  `createOrderFulfillmentWorkflow` only loads `variant.weight`) and passes the resolved weight.
+- Webhook: a failure applying a known packet's status now answers **500** (logged) so Packeta
+  redelivers, instead of a 200 that silently dropped the update. Unknown packets still get 200.
+- README: storefront `data` contract table (internal vs. external pickup points, required cart
+  fields).
+- Tested against Medusa 2.21.2; dev dependencies bumped from 2.19.0.
+
 ## 0.1.1
 
 - `LICENSE` file shipped in the package; `author` set to the full name.

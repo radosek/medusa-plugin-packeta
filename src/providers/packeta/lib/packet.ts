@@ -53,10 +53,12 @@ export function splitName(first?: string | null, last?: string | null): { name: 
 	return { name: parts[0] ?? "", surname: parts[0] ?? "" }
 }
 
-/** Sum variant weights (grams) × quantity, add packaging, convert to kg. */
+type WeightedVariant = { weight?: number | null; product?: { weight?: number | null } | null } | null
+
+/** Sum line weights (grams; variant weight, else product weight) × quantity, add packaging, convert to kg. */
 export function packetWeightKg(
-	items: Partial<FulfillmentItemDTO & { quantity?: number; variant?: { weight?: number | null } | null }>[],
-	orderItems: { id: string; variant?: { weight?: number | null } | null; quantity?: number }[] | undefined,
+	items: Partial<FulfillmentItemDTO & { quantity?: number; variant?: WeightedVariant }>[],
+	orderItems: { id: string; variant?: WeightedVariant; quantity?: unknown }[] | undefined,
 	options: Pick<ResolvedPacketaOptions, "default_weight_kg" | "packaging_weight_g">,
 ): number {
 	const byLineItem = new Map((orderItems ?? []).map((i) => [i.id, i]))
@@ -64,7 +66,8 @@ export function packetWeightKg(
 	let known = false
 	for (const it of items) {
 		const line = it.line_item_id ? byLineItem.get(it.line_item_id) : undefined
-		const w = num(line?.variant?.weight ?? it.variant?.weight)
+		const variant = line?.variant ?? it.variant
+		const w = num(variant?.weight) || num(variant?.product?.weight)
 		const qty = num(it.quantity) || 1
 		if (w > 0) {
 			grams += w * qty
@@ -158,8 +161,7 @@ export function buildPacketAttributes(input: BuildPacketInput): BuiltPacket {
 			? round2(additional.weight_kg)
 			: packetWeightKg(
 					items,
-					(order as { items?: { id: string; variant?: { weight?: number | null } | null }[] } | undefined)
-						?.items,
+					(order as { items?: { id: string; variant?: WeightedVariant }[] } | undefined)?.items,
 					options,
 				)
 

@@ -1,5 +1,11 @@
+import { MedusaError } from "@medusajs/framework/utils"
 import { POST } from "../../../api/hooks/packeta/route"
 import { signPacketaWebhook } from "../../../api/lib/webhook"
+import { syncPacketStatusWorkflow } from "../../../workflows/sync-packet-status"
+
+jest.mock("../../../workflows/sync-packet-status", () => ({ syncPacketStatusWorkflow: jest.fn() }))
+const runSync = jest.fn()
+;(syncPacketStatusWorkflow as unknown as jest.Mock).mockReturnValue({ run: runSync })
 
 const KEY = "k"
 const body = JSON.stringify({
@@ -77,5 +83,43 @@ describe("webhook route auth", () => {
 		const r2 = res()
 		await POST(req({}, { allow_unsigned_webhook: true }), r2)
 		expect(r2.statusCode).toBe(503)
+	})
+})
+
+const ts = () => String(Math.floor(Date.now() / 1000))
+
+const signed = () => {
+	const t = ts()
+	return req(
+		{ "x-webhook-timestamp": t, "x-webhook-signature": signPacketaWebhook(KEY, t, body) },
+		{ webhook_signing_key: KEY },
+	)
+}
+
+describe("webhook route status application", () => {
+	beforeEach(() => runSync.mockReset())
+
+	it("acks a valid event with 200", async () => {
+		runSync.mockResolvedValue({})
+		const r = res()
+		await POST(signed(), r)
+		expect(r.statusCode).toBe(200)
+		expect(runSync).toHaveBeenCalledWith({ input: expect.objectContaining({ packet_id: "1" }) })
+	})
+
+	it("acks an unknown packet with 200 so Packeta stops retrying", async () => {
+		runSync.mockRejectedValue(new MedusaError(MedusaError.Types.NOT_FOUND, "nope"))
+		const r = res()
+		await POST(signed(), r)
+		expect(r.statusCode).toBe(200)
+	})
+
+	it("answers 500 when applying a known packet's status fails, so Packeta redelivers", async () => {
+		runSync.mockRejectedValue(new Error("db down"))
+		const r = res()
+		const q = signed()
+		await POST(q, r)
+		expect(r.statusCode).toBe(500)
+		expect(q.logger.error).toHaveBeenCalled()
 	})
 })
