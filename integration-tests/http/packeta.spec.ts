@@ -1,6 +1,7 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { signPacketaWebhook } from "../../src/api/lib/webhook"
 import { PACKETA_MODULE } from "../../src/modules/packeta"
+import type PacketaModuleService from "../../src/modules/packeta/service"
 import { placeOrder, seedStore, sleep, type Store } from "../helpers"
 import { startMockPacketa, type MockPacketa } from "../mock-packeta"
 
@@ -320,7 +321,7 @@ medusaIntegrationTestRunner({
 			const packet = created.data.packet
 
 			// Point the record at an order that no longer exists: the ship step is rejected.
-			const packeta = getContainer().resolve(PACKETA_MODULE)
+			const packeta = getContainer().resolve<PacketaModuleService>(PACKETA_MODULE)
 			const [record] = await packeta.listPacketaPackets({ packet_id: packet.packet_id }, { take: 1 })
 			await packeta.updatePacketaPackets({ id: record.id, order_id: "order_missing" })
 
