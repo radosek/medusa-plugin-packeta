@@ -6,7 +6,8 @@
   "Create packet" workflow now loads `items.variant.product.weight` (Medusa's
   `createOrderFulfillmentWorkflow` only loads `variant.weight`) and passes the resolved weight.
 - Webhook: a failure applying a known packet's status now answers **500** (logged) so Packeta
-  redelivers, instead of a 200 that silently dropped the update. Unknown packets and permanently invalid events (`INVALID_DATA` / `NOT_ALLOWED`) get 200 with an error log. Workflow errors are matched with `MedusaError.isMedusaError` because they arrive serialized.
+  redelivers, instead of a 200 that silently dropped the update. Unknown packets still get 200; workflow errors are matched with `MedusaError.isMedusaError` because they arrive serialized.
+- Status is stored separately from the shipped / delivered side effects (`applyPacketStatusWorkflow` + `applyPacketEffectsWorkflow`, run together by the new `syncPacketStatus` helper). A rejected fulfillment update (e.g. cancelled order) no longer rolls back the stored status; the webhook logs a permanent rejection with 200 and answers 500 on a transient one. The webhook, poll job and admin refresh all use the helper. `syncPacketStatusWorkflow` is kept, with its all-or-nothing behaviour, for existing callers.
 - Customs item weights fall back to the product weight too.
 - README: storefront `data` contract table (internal vs. external pickup points, required cart
   fields).

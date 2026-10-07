@@ -1,5 +1,11 @@
 export { recordPacketWorkflow, type RecordPacketWorkflowInput } from "./record-packet"
-export { syncPacketStatusWorkflow, type SyncPacketStatusWorkflowInput } from "./sync-packet-status"
+export {
+	applyPacketEffectsWorkflow,
+	applyPacketStatusWorkflow,
+	syncPacketStatus,
+	syncPacketStatusWorkflow,
+	type SyncPacketStatusWorkflowInput,
+} from "./sync-packet-status"
 export { cancelPacketWorkflow, type CancelPacketWorkflowInput } from "./cancel-packet"
 export {
 	createPacketForOrderWorkflow,

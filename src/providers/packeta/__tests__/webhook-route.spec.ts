@@ -1,11 +1,12 @@
 import { MedusaError } from "@medusajs/framework/utils"
 import { POST } from "../../../api/hooks/packeta/route"
 import { signPacketaWebhook } from "../../../api/lib/webhook"
-import { syncPacketStatusWorkflow } from "../../../workflows/sync-packet-status"
+import { syncPacketStatus } from "../../../workflows/sync-packet-status"
 
-jest.mock("../../../workflows/sync-packet-status", () => ({ syncPacketStatusWorkflow: jest.fn() }))
-const runSync = jest.fn()
-;(syncPacketStatusWorkflow as unknown as jest.Mock).mockReturnValue({ run: runSync })
+jest.mock("../../../workflows/sync-packet-status", () => ({ syncPacketStatus: jest.fn() }))
+const runSync = syncPacketStatus as unknown as jest.Mock
+const updatePacketaPackets = jest.fn()
+const decision = { packet_record_id: "rec_1" }
 
 const KEY = "k"
 const body = JSON.stringify({
@@ -26,7 +27,10 @@ function req(headers: Record<string, string>, options: Record<string, unknown>) 
 		resolve: (k: string) =>
 			k === "logger"
 				? logger
-				: { getOptions: () => ({ webhook_tolerance_s: 300, allow_unsigned_webhook: false, ...options }) },
+				: {
+						getOptions: () => ({ webhook_tolerance_s: 300, allow_unsigned_webhook: false, ...options }),
+						updatePacketaPackets,
+					},
 	}
 	return { headers, body: JSON.parse(body), rawBody: body, scope, logger } as any
 }
@@ -97,14 +101,17 @@ const signed = () => {
 }
 
 describe("webhook route status application", () => {
-	beforeEach(() => runSync.mockReset())
+	beforeEach(() => {
+		runSync.mockReset()
+		updatePacketaPackets.mockReset()
+	})
 
 	it("acks a valid event with 200", async () => {
-		runSync.mockResolvedValue({})
+		runSync.mockResolvedValue({ decision })
 		const r = res()
 		await POST(signed(), r)
 		expect(r.statusCode).toBe(200)
-		expect(runSync).toHaveBeenCalledWith({ input: expect.objectContaining({ packet_id: "1" }) })
+		expect(runSync).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ packet_id: "1" }))
 	})
 
 	it("acks an unknown packet with 200 so Packeta stops retrying", async () => {
@@ -115,21 +122,33 @@ describe("webhook route status application", () => {
 		expect(r.statusCode).toBe(200)
 	})
 
-	it("acks a permanently invalid status with 200 and logs it", async () => {
+	it("answers 500 when storing a known packet's status fails, so Packeta redelivers", async () => {
 		runSync.mockRejectedValue({ __isMedusaError: true, type: MedusaError.Types.INVALID_DATA, message: "bad" })
-		const r = res()
-		const q = signed()
-		await POST(q, r)
-		expect(r.statusCode).toBe(200)
-		expect(q.logger.error).toHaveBeenCalled()
-	})
-
-	it("answers 500 when applying a known packet's status fails, so Packeta redelivers", async () => {
-		runSync.mockRejectedValue(new Error("db down"))
 		const r = res()
 		const q = signed()
 		await POST(q, r)
 		expect(r.statusCode).toBe(500)
 		expect(q.logger.error).toHaveBeenCalled()
+	})
+
+	it("acks a permanently rejected fulfillment update with 200, keeping the stored status", async () => {
+		runSync.mockResolvedValue({
+			decision,
+			effectsError: { __isMedusaError: true, type: MedusaError.Types.NOT_ALLOWED, message: "order canceled" },
+		})
+		const r = res()
+		const q = signed()
+		await POST(q, r)
+		expect(r.statusCode).toBe(200)
+		expect(q.logger.error).toHaveBeenCalledWith(expect.stringContaining("order canceled"))
+		expect(updatePacketaPackets).not.toHaveBeenCalled()
+	})
+
+	it("answers 500 on a transient fulfillment update failure and clears the dedupe marker", async () => {
+		runSync.mockResolvedValue({ decision, effectsError: new Error("db down") })
+		const r = res()
+		await POST(signed(), r)
+		expect(r.statusCode).toBe(500)
+		expect(updatePacketaPackets).toHaveBeenCalledWith({ id: "rec_1", last_event_id: null })
 	})
 })
