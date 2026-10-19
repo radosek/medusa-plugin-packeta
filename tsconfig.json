@@ -4,6 +4,7 @@
 		"lib": ["ES2021", "DOM"],
 		"module": "Node16",
 		"moduleResolution": "Node16",
+		"customConditions": ["packeta-source"],
 		"declaration": true,
 		"sourceMap": false,
 		"outDir": "./.medusa/server",

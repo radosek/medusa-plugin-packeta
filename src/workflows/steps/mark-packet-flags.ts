@@ -1,6 +1,6 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
-import { PACKETA_MODULE } from "../../modules/packeta"
-import type PacketaModuleService from "../../modules/packeta/service"
+import { PACKETA_MODULE } from "#src/modules/packeta/index"
+import type PacketaModuleService from "#src/modules/packeta/service"
 
 export interface MarkPacketFlagsInput {
 	packet_record_id: string

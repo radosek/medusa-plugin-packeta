@@ -1,7 +1,7 @@
 import { PacketaClient } from "../lib/client"
 import { buildCustoms, buildPacketAttributes } from "../lib/packet"
 import { resolveOptions, type PacketaCarrier, type PacketaFulfillmentData } from "../types"
-import { cronMatches } from "../../../jobs/packeta-poll-status"
+import { cronMatches } from "#src/jobs/packeta-poll-status"
 
 const options = resolveOptions({
 	api_password: "x".repeat(32),

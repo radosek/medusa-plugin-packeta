@@ -33,6 +33,13 @@
 		"LICENSE"
 	],
 	"type": "commonjs",
+	"imports": {
+		"#src/*": {
+			"packeta-source": "./src/*.ts",
+			"types": "./.medusa/server/src/*.d.ts",
+			"default": "./.medusa/server/src/*.js"
+		}
+	},
 	"exports": {
 		"./package.json": "./package.json",
 		"./workflows": "./.medusa/server/src/workflows/index.js",

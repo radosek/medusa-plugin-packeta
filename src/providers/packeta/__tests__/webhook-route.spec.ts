@@ -1,9 +1,9 @@
 import { MedusaError } from "@medusajs/framework/utils"
-import { POST } from "../../../api/hooks/packeta/route"
-import { signPacketaWebhook } from "../../../api/lib/webhook"
-import { syncPacketStatus } from "../../../workflows/sync-packet-status"
+import { POST } from "#src/api/hooks/packeta/route"
+import { signPacketaWebhook } from "#src/api/lib/webhook"
+import { syncPacketStatus } from "#src/workflows/sync-packet-status"
 
-jest.mock("../../../workflows/sync-packet-status", () => ({ syncPacketStatus: jest.fn() }))
+jest.mock("#src/workflows/sync-packet-status", () => ({ syncPacketStatus: jest.fn() }))
 const runSync = syncPacketStatus as unknown as jest.Mock
 const updatePacketaPackets = jest.fn()
 const decision = { packet_record_id: "rec_1" }

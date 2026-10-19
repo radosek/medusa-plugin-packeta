@@ -1,6 +1,6 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { findPacket, ordersById, serialisePacket } from "../../../../../lib/packets"
-import { syncPacketStatus } from "../../../../../../workflows/sync-packet-status"
+import { findPacket, ordersById, serialisePacket } from "#src/api/lib/packets"
+import { syncPacketStatus } from "#src/workflows/sync-packet-status"
 
 /** POST /admin/packeta/packets/:id/refresh — pull the current status from Packeta and apply it. */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {

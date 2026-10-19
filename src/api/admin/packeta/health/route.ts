@@ -1,7 +1,7 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { PACKETA_MODULE } from "../../../../modules/packeta"
-import type PacketaModuleService from "../../../../modules/packeta/service"
-import { PacketaError } from "../../../../providers/packeta/lib/client"
+import { PACKETA_MODULE } from "#src/modules/packeta/index"
+import type PacketaModuleService from "#src/modules/packeta/service"
+import { PacketaError } from "#src/providers/packeta/lib/client"
 
 /**
  * GET /admin/packeta/health — are the credentials good and the feed reachable?

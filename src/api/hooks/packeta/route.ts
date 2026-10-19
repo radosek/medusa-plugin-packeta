@@ -1,10 +1,10 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
-import { PACKETA_MODULE } from "../../../modules/packeta"
-import type PacketaModuleService from "../../../modules/packeta/service"
-import type { PacketaPushEvent } from "../../../providers/packeta/types"
-import { syncPacketStatus } from "../../../workflows/sync-packet-status"
-import { verifyPacketaSignature } from "../../lib/webhook"
+import { PACKETA_MODULE } from "#src/modules/packeta/index"
+import type PacketaModuleService from "#src/modules/packeta/service"
+import type { PacketaPushEvent } from "#src/providers/packeta/types"
+import { syncPacketStatus } from "#src/workflows/sync-packet-status"
+import { verifyPacketaSignature } from "#src/api/lib/webhook"
 
 /**
  * Packeta push-tracking webhook. Register this URL with integrations@packeta.com;

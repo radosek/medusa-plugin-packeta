@@ -11,6 +11,7 @@
 - Customs item weights fall back to the product weight too.
 - README: storefront `data` contract table (internal vs. external pickup points, required cart
   fields).
+- Internal: server code imports through the `#src/*` package subpath import instead of deep `../../../` paths (no runtime or API change).
 - Tested against Medusa 2.21.2; dev dependencies bumped from 2.19.0.
 
 ## 0.1.1

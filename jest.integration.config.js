@@ -6,6 +6,7 @@ module.exports = {
 	testEnvironment: "node",
 	testMatch: ["**/integration-tests/http/*.spec.ts"],
 	moduleFileExtensions: ["ts", "js", "json"],
+	moduleNameMapper: { "^#src/(.*)$": "<rootDir>/src/$1" },
 	modulePathIgnorePatterns: ["dist/", "<rootDir>/.medusa/"],
 	transform: {
 		"^.+\\.[jt]sx?$": [

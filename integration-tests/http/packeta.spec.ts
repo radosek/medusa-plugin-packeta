@@ -1,7 +1,7 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
-import { signPacketaWebhook } from "../../src/api/lib/webhook"
-import { PACKETA_MODULE } from "../../src/modules/packeta"
-import type PacketaModuleService from "../../src/modules/packeta/service"
+import { signPacketaWebhook } from "#src/api/lib/webhook"
+import { PACKETA_MODULE } from "#src/modules/packeta/index"
+import type PacketaModuleService from "#src/modules/packeta/service"
 import { placeOrder, seedStore, sleep, type Store } from "../helpers"
 import { startMockPacketa, type MockPacketa } from "../mock-packeta"
 
