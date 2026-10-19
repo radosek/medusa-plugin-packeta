@@ -1,4 +1,4 @@
-import { addressToShippingMethodData, formatPoint, pointToShippingMethodData } from "../../../widget"
+import { addressToShippingMethodData, formatPoint, pointToShippingMethodData } from "#src/widget/index"
 
 describe("storefront widget helper", () => {
 	it("maps an internal point", () => {

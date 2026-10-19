@@ -4,7 +4,7 @@ import { createOrderFulfillmentWorkflow, useQueryGraphStep } from "@medusajs/med
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { PACKETA_MODULE } from "../modules/packeta"
 import type PacketaModuleService from "../modules/packeta/service"
-import { num, round2 } from "../providers/packeta/lib/packet"
+import { num, packetWeightKg, round2 } from "../providers/packeta/lib/packet"
 import { isPacketaShippingMethod, type PacketaAdditionalData } from "../providers/packeta/types"
 import { recordPacketWorkflow } from "./record-packet"
 
@@ -27,6 +27,7 @@ type OrderRow = {
 		id: string
 		quantity?: unknown
 		unit_price?: unknown
+		variant?: { weight?: number | null; product?: { weight?: number | null } | null } | null
 		detail?: { quantity?: unknown; fulfilled_quantity?: unknown } | null
 	}[]
 	shipping_methods: {
@@ -51,6 +52,27 @@ const countOrderPacketsStep = createStep<{ order_id: string }, number, null>(
 )
 
 /**
+ * `createOrderFulfillmentWorkflow` loads `items.variant.weight` but not the
+ * product weight, so a catalogue that only weighs products would fall back to
+ * `default_weight_kg`. Resolve the weight here, where the product is queryable.
+ */
+const resolvePacketWeightStep = createStep<
+	{ items: { id: string; quantity: number }[]; order_items: OrderRow["items"]; weight_kg?: number },
+	number | undefined,
+	null
+>("packeta-resolve-packet-weight", async (input, { container }) => {
+	if (typeof input.weight_kg === "number" && input.weight_kg > 0)
+		return new StepResponse(input.weight_kg, null)
+	const options = container.resolve<PacketaModuleService>(PACKETA_MODULE).getOptions()
+	const weight = packetWeightKg(
+		input.items.map((i) => ({ line_item_id: i.id, quantity: i.quantity })),
+		input.order_items,
+		options,
+	)
+	return new StepResponse(weight, null)
+})
+
+/**
  * Admin "Create Packeta packet": creates an order fulfillment for the Packeta
  * shipping method with `additional_data.packeta` (COD / weight / note
  * overrides), then mirrors it into `packeta_packet`.
@@ -69,6 +91,8 @@ export const createPacketForOrderWorkflow = createWorkflow(
 				"items.id",
 				"items.unit_price",
 				"items.quantity",
+				"items.variant.weight",
+				"items.variant.product.weight",
 				"items.detail.quantity",
 				"items.detail.fulfilled_quantity",
 				"shipping_methods.id",
@@ -126,7 +150,18 @@ export const createPacketForOrderWorkflow = createWorkflow(
 			}
 		})
 
-		const fulfillment = createOrderFulfillmentWorkflow.runAsStep({ input: fulfillmentInput })
+		const weightInput = transform({ orders, fulfillmentInput }, (d) => ({
+			items: d.fulfillmentInput.items,
+			order_items: (d.orders.data as OrderRow[])[0].items,
+			weight_kg: d.fulfillmentInput.additional_data.packeta.weight_kg,
+		}))
+		const weightKg = resolvePacketWeightStep(weightInput)
+		const withWeight = transform({ fulfillmentInput, weightKg }, (d) => ({
+			...d.fulfillmentInput,
+			additional_data: { packeta: { ...d.fulfillmentInput.additional_data.packeta, weight_kg: d.weightKg } },
+		}))
+
+		const fulfillment = createOrderFulfillmentWorkflow.runAsStep({ input: withWeight })
 
 		const recordInput = transform({ fulfillment, input }, (d) => ({
 			fulfillment_id: d.fulfillment.id,

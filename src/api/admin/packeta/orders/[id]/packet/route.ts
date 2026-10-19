@@ -1,8 +1,8 @@
 import type { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
-import type { PacketaAdditionalData } from "../../../../../../providers/packeta/types"
-import { createPacketForOrderWorkflow } from "../../../../../../workflows/create-packet-for-order"
-import { findPacket, findPacketByFulfillment, ordersById, serialisePacket } from "../../../../../lib/packets"
+import type { PacketaAdditionalData } from "#src/providers/packeta/types"
+import { createPacketForOrderWorkflow } from "#src/workflows/create-packet-for-order"
+import { findPacket, findPacketByFulfillment, ordersById, serialisePacket } from "#src/api/lib/packets"
 
 type Body = {
 	items?: { id: string; quantity: number }[]

@@ -1,12 +1,12 @@
 import { MedusaError, MedusaService } from "@medusajs/framework/utils"
-import { PacketaClient } from "../../providers/packeta/lib/client"
-import { PacketaFeed } from "../../providers/packeta/lib/feed"
-import { validatePacketaOptions } from "../../providers/packeta/service"
+import { PacketaClient } from "#src/providers/packeta/lib/client"
+import { PacketaFeed } from "#src/providers/packeta/lib/feed"
+import { validatePacketaOptions } from "#src/providers/packeta/service"
 import {
 	resolveOptions,
 	type PacketaOptions,
 	type ResolvedPacketaOptions,
-} from "../../providers/packeta/types"
+} from "#src/providers/packeta/types"
 import PacketaPacket from "./models/packeta-packet"
 
 /**

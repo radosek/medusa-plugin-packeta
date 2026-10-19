@@ -1,9 +1,9 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-import { PACKETA_MODULE } from "../../modules/packeta"
-import type PacketaModuleService from "../../modules/packeta/service"
-import { statusMeta } from "../../providers/packeta/lib/status"
-import { PACKETA_LABEL_FORMATS, type PacketaLabelFormat } from "../../providers/packeta/types"
+import { PACKETA_MODULE } from "#src/modules/packeta/index"
+import type PacketaModuleService from "#src/modules/packeta/service"
+import { statusMeta } from "#src/providers/packeta/lib/status"
+import { PACKETA_LABEL_FORMATS, type PacketaLabelFormat } from "#src/providers/packeta/types"
 
 export type PacketRecord = Awaited<ReturnType<PacketaModuleService["listPacketaPackets"]>>[number]
 

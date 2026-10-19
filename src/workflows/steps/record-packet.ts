@@ -1,9 +1,9 @@
 import type { IFulfillmentModuleService } from "@medusajs/framework/types"
 import { Modules } from "@medusajs/framework/utils"
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
-import { PACKETA_MODULE } from "../../modules/packeta"
-import type PacketaModuleService from "../../modules/packeta/service"
-import { isPacketaProviderId, type PacketaPacketData } from "../../providers/packeta/types"
+import { PACKETA_MODULE } from "#src/modules/packeta/index"
+import type PacketaModuleService from "#src/modules/packeta/service"
+import { isPacketaProviderId, type PacketaPacketData } from "#src/providers/packeta/types"
 
 export interface RecordPacketStepInput {
 	fulfillment_id: string

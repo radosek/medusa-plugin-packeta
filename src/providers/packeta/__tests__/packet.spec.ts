@@ -68,6 +68,18 @@ describe("packetWeightKg", () => {
 	it("sums known variant weights × quantity plus packaging", () => {
 		expect(packetWeightKg(items, order.items, options)).toBe(0.6)
 	})
+	it("falls back to the product weight when the variant has none", () => {
+		const lines = [
+			{ id: "li_a", variant: { weight: null, product: { weight: 800 } } },
+			{ id: "li_b", variant: { weight: 200, product: { weight: 999 } } },
+		]
+		const picked = [
+			{ line_item_id: "li_a", quantity: 2 },
+			{ line_item_id: "li_b", quantity: 1 },
+		]
+		// 800×2 + 200 (variant wins over product) + packaging
+		expect(packetWeightKg(picked, lines, options)).toBe((1800 + options.packaging_weight_g) / 1000)
+	})
 	it("falls back to the default when nothing is known", () => {
 		expect(packetWeightKg([{ line_item_id: "li_2", quantity: 1 }], order.items, options)).toBe(0.5)
 	})

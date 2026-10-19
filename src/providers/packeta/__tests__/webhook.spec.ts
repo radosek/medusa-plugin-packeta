@@ -1,4 +1,4 @@
-import { signPacketaWebhook, verifyPacketaSignature } from "../../../api/lib/webhook"
+import { signPacketaWebhook, verifyPacketaSignature } from "#src/api/lib/webhook"
 import { statusGroup, statusMeta } from "../lib/status"
 
 describe("push tracking signature", () => {

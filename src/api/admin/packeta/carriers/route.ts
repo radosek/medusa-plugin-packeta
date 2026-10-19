@@ -1,7 +1,7 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { PACKETA_MODULE } from "../../../../modules/packeta"
-import type PacketaModuleService from "../../../../modules/packeta/service"
-import { str } from "../../../lib/packets"
+import { PACKETA_MODULE } from "#src/modules/packeta/index"
+import type PacketaModuleService from "#src/modules/packeta/service"
+import { str } from "#src/api/lib/packets"
 
 /** GET /admin/packeta/carriers?country=cz&refresh=1 — full carrier feed (cached). */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {

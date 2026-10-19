@@ -1,7 +1,7 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { PACKETA_MODULE } from "../../../../modules/packeta"
-import type PacketaModuleService from "../../../../modules/packeta/service"
-import { str } from "../../../lib/packets"
+import { PACKETA_MODULE } from "#src/modules/packeta/index"
+import type PacketaModuleService from "#src/modules/packeta/service"
+import { str } from "#src/api/lib/packets"
 
 /**
  * GET /store/packeta/carriers?country=cz — public subset of the carrier feed so

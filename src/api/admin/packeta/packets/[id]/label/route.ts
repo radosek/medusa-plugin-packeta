@@ -1,10 +1,10 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
-import { PACKETA_MODULE } from "../../../../../../modules/packeta"
-import type PacketaModuleService from "../../../../../../modules/packeta/service"
-import { toMedusaError } from "../../../../../../providers/packeta/service"
-import type { PacketaZplDpi } from "../../../../../../providers/packeta/types"
-import { findPacket, labelFormat, sendPdf } from "../../../../../lib/packets"
+import { PACKETA_MODULE } from "#src/modules/packeta/index"
+import type PacketaModuleService from "#src/modules/packeta/service"
+import { toMedusaError } from "#src/providers/packeta/service"
+import type { PacketaZplDpi } from "#src/providers/packeta/types"
+import { findPacket, labelFormat, sendPdf } from "#src/api/lib/packets"
 
 /**
  * GET /admin/packeta/packets/:id/label

@@ -1,9 +1,9 @@
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
-import { PACKETA_MODULE } from "../../modules/packeta"
-import type PacketaModuleService from "../../modules/packeta/service"
-import { statusGroup } from "../../providers/packeta/lib/status"
-import type { CurrentStatusRecord, PacketaPushEvent } from "../../providers/packeta/types"
+import { PACKETA_MODULE } from "#src/modules/packeta/index"
+import type PacketaModuleService from "#src/modules/packeta/service"
+import { statusGroup } from "#src/providers/packeta/lib/status"
+import type { CurrentStatusRecord, PacketaPushEvent } from "#src/providers/packeta/types"
 
 /** Statuses after which a packet's Packeta status never moves again. */
 const TERMINAL_STATUS_IDS = new Set([7, 10, 11])

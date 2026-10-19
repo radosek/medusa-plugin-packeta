@@ -1,6 +1,6 @@
 import type { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { findPacket, ordersById, serialisePacket } from "../../../../../lib/packets"
-import { cancelPacketWorkflow } from "../../../../../../workflows/cancel-packet"
+import { findPacket, ordersById, serialisePacket } from "#src/api/lib/packets"
+import { cancelPacketWorkflow } from "#src/workflows/cancel-packet"
 
 /** POST /admin/packeta/packets/:id/cancel — cancel at Packeta (and the Medusa fulfillment for outbound packets). */
 export const POST = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) => {

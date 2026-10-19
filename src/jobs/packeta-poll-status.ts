@@ -1,7 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { PACKETA_MODULE } from "../modules/packeta"
 import type PacketaModuleService from "../modules/packeta/service"
-import { syncPacketStatusWorkflow } from "../workflows/sync-packet-status"
+import { syncPacketStatus } from "../workflows/sync-packet-status"
 
 /** Terminal statuses that never change again — skip them. */
 const TERMINAL = [7, 10, 11]
@@ -21,7 +21,7 @@ export default async function packetaPollStatusJob(container: MedusaContainer) {
 	if (!cronMatches(options.poll_status_cron, new Date())) return
 
 	const since = new Date(Date.now() - options.poll_status_max_age_days * 86_400_000)
-	const packets = await packeta.listPacketaPackets(
+	const open = await packeta.listPacketaPackets(
 		{
 			cancelled_at: null,
 			created_at: { $gte: since },
@@ -29,6 +29,25 @@ export default async function packetaPollStatusJob(container: MedusaContainer) {
 		},
 		{ take: options.poll_status_batch, order: { status_at: "ASC" } },
 	)
+	// A packet with a terminal status is not polled for its status again. If marking its
+	// fulfillment shipped / delivered failed, pull it again so that step is retried.
+	const terminalWithEffects = TERMINAL.filter(
+		(id) => options.auto_ship_status_ids.includes(id) || options.auto_deliver_status_ids.includes(id),
+	)
+	const owing = terminalWithEffects.length
+		? await packeta.listPacketaPackets(
+				{
+					cancelled_at: null,
+					created_at: { $gte: since },
+					kind: { $ne: "return" },
+					fulfillment_id: { $ne: null },
+					status_id: { $in: terminalWithEffects },
+					$or: [{ shipped_marked_at: null }, { delivered_marked_at: null }],
+				},
+				{ take: options.poll_status_batch, order: { status_at: "ASC" } },
+			)
+		: []
+	const packets = [...open, ...owing]
 	if (!packets.length) return
 
 	let ok = 0
@@ -36,7 +55,12 @@ export default async function packetaPollStatusJob(container: MedusaContainer) {
 	for (const p of packets) {
 		try {
 			// eslint-disable-next-line no-await-in-loop
-			await syncPacketStatusWorkflow(container).run({ input: { packet_id: p.packet_id } })
+			const { effectsError } = await syncPacketStatus(container, { packet_id: p.packet_id })
+			if (effectsError) {
+				logger.warn(
+					`Packeta poll: ${p.barcode} status stored, fulfillment update failed: ${(effectsError as Error).message}`,
+				)
+			}
 			ok++
 		} catch (e) {
 			logger.warn(`Packeta poll: ${p.barcode} failed: ${(e as Error).message}`)

@@ -1,7 +1,7 @@
 import { PacketaClient } from "../lib/client"
 import { buildCustoms, buildPacketAttributes } from "../lib/packet"
 import { resolveOptions, type PacketaCarrier, type PacketaFulfillmentData } from "../types"
-import { cronMatches } from "../../../jobs/packeta-poll-status"
+import { cronMatches } from "#src/jobs/packeta-poll-status"
 
 const options = resolveOptions({
 	api_password: "x".repeat(32),
@@ -87,6 +87,27 @@ describe("customs + size", () => {
 		const second = Object.fromEntries(b.attributes.items![1].map((a) => [a.key, a.value]))
 		expect(second).toMatchObject({ customsCode: "61091000", countryOfOrigin: "CZ", value: 20, unitsCount: 1 })
 		expect(Number(second.weight)).toBeGreaterThan(0)
+	})
+
+	it("uses the product weight for a customs item whose variant has none", () => {
+		const data: PacketaFulfillmentData = { kind: "hd", option_id: "packeta-home-delivery", carrier_id: "106" }
+		const c = buildCustoms(
+			{
+				order: {
+					items: [
+						{ id: "li_w", title: "T", unit_price: 10, quantity: 2, variant: { product: { weight: 300 } } },
+					],
+				},
+				items: [{ line_item_id: "li_w", quantity: 2 }],
+				data,
+				options,
+				fallbackNumber: "f",
+			} as any,
+			"EUR",
+			5,
+		)
+		const item = Object.fromEntries(c.items[0].map((a) => [a.key, a.value]))
+		expect(item.weight).toBe(0.6)
 	})
 
 	it("lets explicit customs data win", () => {

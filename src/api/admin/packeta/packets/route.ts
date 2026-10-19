@@ -1,8 +1,8 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { PACKETA_MODULE } from "../../../../modules/packeta"
-import type PacketaModuleService from "../../../../modules/packeta/service"
-import { PACKETA_STATUSES } from "../../../../providers/packeta/lib/status"
-import { int, ordersById, serialisePacket, str } from "../../../lib/packets"
+import { PACKETA_MODULE } from "#src/modules/packeta/index"
+import type PacketaModuleService from "#src/modules/packeta/service"
+import { PACKETA_STATUSES } from "#src/providers/packeta/lib/status"
+import { int, ordersById, serialisePacket, str } from "#src/api/lib/packets"
 
 /**
  * GET /admin/packeta/packets

@@ -1,5 +1,5 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { findPacket, ordersById, serialisePacket } from "../../../../lib/packets"
+import { findPacket, ordersById, serialisePacket } from "#src/api/lib/packets"
 
 /** GET /admin/packeta/packets/:id — `:id` is the Packeta packet id (with or without Z) or the record id. */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
