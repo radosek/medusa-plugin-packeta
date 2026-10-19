@@ -63,9 +63,10 @@ export const applyPacketEffectsWorkflow = createWorkflow(
  * `auto_ship_status_ids` / `auto_deliver_status_ids`, in that order.
  *
  * Throws when the status itself could not be applied (including `NOT_FOUND` for an
- * unknown packet). A side-effect failure does not throw: the status is already
- * stored, the error is returned as `effectsError`, and the shipped / delivered flags
- * stay unset so the next pull retries the side effect.
+ * unknown packet). A side-effect failure does not throw. The status is already
+ * stored and the error is returned as `effectsError`. The shipped / delivered flags
+ * stay unset, so the poll job pulls the packet again and retries the side effect.
+ * This is also true for a packet with a terminal status.
  */
 export async function syncPacketStatus(
 	container: MedusaContainer,

@@ -21,7 +21,7 @@ export default async function packetaPollStatusJob(container: MedusaContainer) {
 	if (!cronMatches(options.poll_status_cron, new Date())) return
 
 	const since = new Date(Date.now() - options.poll_status_max_age_days * 86_400_000)
-	const packets = await packeta.listPacketaPackets(
+	const open = await packeta.listPacketaPackets(
 		{
 			cancelled_at: null,
 			created_at: { $gte: since },
@@ -29,6 +29,25 @@ export default async function packetaPollStatusJob(container: MedusaContainer) {
 		},
 		{ take: options.poll_status_batch, order: { status_at: "ASC" } },
 	)
+	// A packet with a terminal status is not polled for its status again. If marking its
+	// fulfillment shipped / delivered failed, pull it again so that step is retried.
+	const terminalWithEffects = TERMINAL.filter(
+		(id) => options.auto_ship_status_ids.includes(id) || options.auto_deliver_status_ids.includes(id),
+	)
+	const owing = terminalWithEffects.length
+		? await packeta.listPacketaPackets(
+				{
+					cancelled_at: null,
+					created_at: { $gte: since },
+					kind: { $ne: "return" },
+					fulfillment_id: { $ne: null },
+					status_id: { $in: terminalWithEffects },
+					$or: [{ shipped_marked_at: null }, { delivered_marked_at: null }],
+				},
+				{ take: options.poll_status_batch, order: { status_at: "ASC" } },
+			)
+		: []
+	const packets = [...open, ...owing]
 	if (!packets.length) return
 
 	let ok = 0
