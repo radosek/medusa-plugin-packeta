@@ -1,8 +1,8 @@
 # Storefront: Medusa Next.js starter + Packeta
 
-The plugin ships no React components on purpose — checkout UIs differ too much. This is
-the smallest wiring for the [Medusa Next.js starter](https://github.com/medusajs/nextjs-starter-medusa)
-using the dependency-free helper from `medusa-plugin-packeta/widget`.
+The plugin has no React components. This is intentional, because checkout UIs are very different.
+This guide shows the minimum integration for the [Medusa Next.js starter](https://github.com/medusajs/nextjs-starter-medusa).
+It uses the helper from `medusa-plugin-packeta/widget`, which has no dependencies.
 
 ## 1. Environment
 
@@ -12,9 +12,11 @@ NEXT_PUBLIC_PACKETA_API_KEY=abcdefghijklmnop   # 16-char API key (public; the wi
 
 ## 2. Shipping step
 
-In `src/modules/checkout/components/shipping/index.tsx` the starter calls `setShippingMethod({ cartId, shippingMethodId })`.
-Add a Packeta branch: when the chosen option is a Packeta pickup option, open the widget
-first and pass the selection as `data`.
+In `src/modules/checkout/components/shipping/index.tsx`, the starter calls `setShippingMethod({ cartId, shippingMethodId })`.
+Add a Packeta branch:
+
+1. If the selected option is a Packeta pickup option, open the widget first.
+2. Send the selection as `data`.
 
 ```tsx
 "use client"
@@ -57,7 +59,7 @@ export function PacketaPickupButton({ cartId, option, onSelected }: { cartId: st
 }
 ```
 
-`setShippingMethod` in the starter does not forward `data` — extend it:
+`setShippingMethod` in the starter does not send `data`. Change it as follows:
 
 ```ts
 // src/lib/data/cart.ts
@@ -72,9 +74,10 @@ export async function setShippingMethod({ cartId, shippingMethodId, data }: { ca
 
 ## 3. Home delivery
 
-Nothing extra: `setShippingMethod({ cartId, shippingMethodId: homeOption.id })` — the
-provider resolves the Packeta HD carrier from the shipping address country. To let the
-customer confirm the address in Packeta's HD widget (CZ/SK only):
+Home delivery needs no extra code. Call `setShippingMethod({ cartId, shippingMethodId: homeOption.id })`.
+The provider finds the Packeta home delivery carrier from the country of the shipping address.
+
+The customer can also confirm the address in the Packeta home delivery widget (CZ and SK only):
 
 ```ts
 import { pickAddress, addressToShippingMethodData } from "medusa-plugin-packeta/widget"
@@ -89,19 +92,17 @@ if (address) await setShippingMethod({ cartId, shippingMethodId: homeOption.id, 
 
 ## 4. Showing the selection
 
-The chosen point is on `cart.shipping_methods[0].data.point` (`name`, `street`, `city`,
-`zip`) after the backend normalised it — render it in the review step and on the order
-confirmation page.
+After the backend normalizes the selected pickup point, it is in `cart.shipping_methods[0].data.point`
+(`name`, `street`, `city`, `zip`). Show it in the review step and on the order confirmation page.
 
 ## 5. Order confirmation / tracking
 
-The Medusa fulfillment gets a label `{ tracking_number: "Z…", tracking_url }` once the
-packet is created; the starter's order page already renders fulfillment labels.
+When the plugin creates the packet, the Medusa fulfillment gets a label `{ tracking_number: "Z…", tracking_url }`.
+The order page of the starter already shows fulfillment labels.
 
 ## Notes
 
-- Load nothing from Packeta on the server: the widget script is injected in the browser
-  by `loadPacketaWidget()` on first use.
-- The `country`/`vendors` options only filter the map; the backend re-validates.
-- Per-carrier shipping options (`packeta-carrier-<id>`) restrict what the backend accepts
-  — pass a matching `vendors: [{ carrierId }]` so the map matches.
+- Do not load Packeta code on the server. `loadPacketaWidget()` adds the widget script in the browser at the first use.
+- The `country` and `vendors` options only filter the map. The backend validates the selection again.
+- A shipping option for one carrier (`packeta-carrier-<id>`) limits the pickup points that the backend accepts.
+  Send a matching `vendors: [{ carrierId }]`, so that the map shows the same pickup points.
