@@ -21,6 +21,13 @@ export interface PacketaOptions {
 	expose_carriers?: boolean
 	/** Carrier ids to expose, or "all". Default "all". */
 	enabled_carriers?: string[] | "all"
+	/**
+	 * Declarative carrier filter applied before `enabled_carriers`: it narrows
+	 * which feed carriers become `packeta-carrier-<id>` options, which
+	 * home-delivery carriers the auto-pick may use, and what the store
+	 * carriers endpoint returns.
+	 */
+	carrier_filter?: PacketaCarrierFilter
 	/** Carrier feed cache TTL in seconds. Default 86400. */
 	feed_ttl_s?: number
 	/** Validate the selected pickup point via the widget validate endpoint. Default true. */
@@ -83,6 +90,31 @@ export type PacketaLabelFormat =
 
 export type PacketaZplDpi = 203 | 300
 
+export type PacketaCarrierType = "hd" | "pickup" | "box"
+
+/**
+ * Declarative filter over the live carrier feed. Applied before
+ * `enabled_carriers` — the ID whitelist narrows the filtered set.
+ */
+export interface PacketaCarrierFilter {
+	/** ISO alpha-2 list, case-insensitive. Empty or absent means all countries. */
+	countries?: string[]
+	/**
+	 * Delivery types. "hd" carriers have no pickup points; pickup-point
+	 * carriers are "box" when their name matches the box heuristic
+	 * (`/box|paczkomat|automat|locker/i`), otherwise "pickup".
+	 */
+	types?: PacketaCarrierType[]
+	/** true = only carriers that accept COD (`disallowsCod` false). */
+	cod?: boolean
+	/** Only carriers whose `maxWeight` is at least this many kg. */
+	min_max_weight_kg?: number
+	/** true = only carriers without `customsDeclarations` (EU-only shops). */
+	eu_only?: boolean
+	/** Carrier ids dropped after all other criteria. */
+	exclude_ids?: string[]
+}
+
 export const PACKETA_LABEL_FORMATS: readonly PacketaLabelFormat[] = [
 	"A6 on A6",
 	"A7 on A7",
@@ -117,9 +149,9 @@ export const PACKETA_DEFAULTS = {
 } as const
 
 export type ResolvedPacketaOptions = Required<
-	Omit<PacketaOptions, "webhook_signing_key" | "default_size" | "customs">
+	Omit<PacketaOptions, "webhook_signing_key" | "default_size" | "customs" | "carrier_filter">
 > &
-	Pick<PacketaOptions, "webhook_signing_key" | "default_size" | "customs">
+	Pick<PacketaOptions, "webhook_signing_key" | "default_size" | "customs" | "carrier_filter">
 
 export function resolveOptions(options: PacketaOptions): ResolvedPacketaOptions {
 	return {

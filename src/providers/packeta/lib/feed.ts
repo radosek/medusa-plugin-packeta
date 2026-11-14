@@ -1,4 +1,4 @@
-import type { PacketaCarrier, PacketaOptions } from "../types"
+import type { PacketaCarrier, PacketaCarrierFilter, PacketaCarrierType, PacketaOptions } from "../types"
 import { PACKETA_DEFAULTS } from "../types"
 
 type FeedOptions = Pick<PacketaOptions, "api_key" | "feed_base_url" | "feed_ttl_s">
@@ -53,10 +53,13 @@ export class PacketaFeed {
 	 * (name contains Packeta / Zásilkovna / "HD" without an external brand),
 	 * falls back to the first available HD carrier of that country.
 	 */
-	async homeDeliveryCarrier(countryCode: string): Promise<PacketaCarrier | undefined> {
+	async homeDeliveryCarrier(
+		countryCode: string,
+		filter?: PacketaCarrierFilter,
+	): Promise<PacketaCarrier | undefined> {
 		const cc = countryCode.toLowerCase()
-		const list = (await this.carriers()).filter((c) => c.available && !c.pickupPoints && c.country === cc)
-		return pickHomeDeliveryCarrier(list)
+		const hd = (await this.carriers()).filter((c) => c.available && !c.pickupPoints && c.country === cc)
+		return pickHomeDeliveryCarrier(applyCarrierFilter(hd, filter))
 	}
 
 	private async fetchCarriers(lang: string): Promise<PacketaCarrier[]> {
@@ -66,6 +69,37 @@ export class PacketaFeed {
 		const raw = (await res.json()) as unknown
 		return parseCarriers(raw)
 	}
+}
+
+const BOX_NAME = /\bbox\b|paczkomat|automat|locker/i
+
+/**
+ * The feed has `pickupPoints` but no explicit delivery type. "hd" means no
+ * pickup points; a pickup-point carrier counts as "box" when its name looks
+ * like a locker network, otherwise "pickup".
+ */
+export function carrierType(c: PacketaCarrier): PacketaCarrierType {
+	if (!c.pickupPoints) return "hd"
+	return BOX_NAME.test(c.name) ? "box" : "pickup"
+}
+
+/** Narrow a carrier list by the configured `carrier_filter`. */
+export function applyCarrierFilter(
+	carriers: PacketaCarrier[],
+	filter?: PacketaCarrierFilter,
+): PacketaCarrier[] {
+	if (!filter) return carriers
+	const countries = filter.countries?.map((c) => c.toLowerCase())
+	const exclude = new Set(filter.exclude_ids ?? [])
+	return carriers.filter((c) => {
+		if (exclude.has(c.id)) return false
+		if (countries?.length && !countries.includes(c.country)) return false
+		if (filter.types?.length && !filter.types.includes(carrierType(c))) return false
+		if (filter.cod && c.disallowsCod) return false
+		if (filter.eu_only && c.customsDeclarations) return false
+		if (filter.min_max_weight_kg !== undefined && c.maxWeight < filter.min_max_weight_kg) return false
+		return true
+	})
 }
 
 const PACKETA_OWN = /packeta|zásilkovna|zasilkovna/i

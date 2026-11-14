@@ -176,6 +176,52 @@ describe("PacketaProviderService", () => {
 			])
 		})
 
+		it("honours carrier_filter before enabled_carriers", async () => {
+			expect(
+				(await service({ carrier_filter: { countries: ["cz"] } }).getFulfillmentOptions()).map((o) => o.id),
+			).toEqual(["packeta-pickup", "packeta-home-delivery", "packeta-return", "packeta-carrier-106"])
+			expect(
+				(await service({ carrier_filter: { cod: true } }).getFulfillmentOptions()).map((o) => o.id),
+			).toEqual([
+				"packeta-pickup",
+				"packeta-home-delivery",
+				"packeta-return",
+				"packeta-carrier-106",
+				"packeta-carrier-131",
+			])
+			expect(
+				(await service({ carrier_filter: { types: ["box"] } }).getFulfillmentOptions()).map((o) => o.id),
+			).toEqual(["packeta-pickup", "packeta-home-delivery", "packeta-return", "packeta-carrier-3060"])
+			// enabled_carriers narrows the filtered set further.
+			expect(
+				(
+					await service({
+						carrier_filter: { countries: ["cz", "pl"] },
+						enabled_carriers: ["3060"],
+					}).getFulfillmentOptions()
+				).map((o) => o.id),
+			).toEqual(["packeta-pickup", "packeta-home-delivery", "packeta-return", "packeta-carrier-3060"])
+		})
+
+		it("rejects malformed carrier_filter values", () => {
+			expect(() =>
+				PacketaProviderService.validateOptions({
+					api_password: PW,
+					api_key: KEY,
+					eshop: "s",
+					carrier_filter: { types: ["pudo" as never] },
+				}),
+			).toThrow(/carrier_filter\.types/)
+			expect(() =>
+				PacketaProviderService.validateOptions({
+					api_password: PW,
+					api_key: KEY,
+					eshop: "s",
+					carrier_filter: { countries: "cz" as never },
+				}),
+			).toThrow(/carrier_filter\.countries/)
+		})
+
 		it("degrades to static options when the feed is down", async () => {
 			installFetch({ "/carrier/json": () => new Response("nope", { status: 500 }) })
 			const opts = await service().getFulfillmentOptions()
@@ -327,6 +373,22 @@ describe("PacketaProviderService", () => {
 			await expect(
 				service().validateFulfillmentData({ id: "packeta-home-delivery" }, {}, ctx("us")),
 			).rejects.toThrow(/no home-delivery carrier/)
+		})
+
+		it("lets carrier_filter narrow the HD auto-pick", async () => {
+			await expect(
+				service({ carrier_filter: { exclude_ids: ["106"] } }).validateFulfillmentData(
+					{ id: "packeta-home-delivery" },
+					{},
+					ctx("cz"),
+				),
+			).rejects.toThrow(/no home-delivery carrier/)
+			const out = await service({ carrier_filter: { countries: ["sk"] } }).validateFulfillmentData(
+				{ id: "packeta-home-delivery" },
+				{},
+				ctx("SK"),
+			)
+			expect(out).toMatchObject({ kind: "hd", carrier_id: "131" })
 		})
 	})
 

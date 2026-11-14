@@ -12,7 +12,7 @@ import type {
 	ValidateFulfillmentDataContext,
 } from "@medusajs/framework/types"
 import { PacketaClient, PacketaError } from "./lib/client"
-import { PacketaFeed } from "./lib/feed"
+import { applyCarrierFilter, PacketaFeed } from "./lib/feed"
 import { buildPacketAttributes, currencyForCountry, round2, trackingUrl } from "./lib/packet"
 import { validatePickupPoint } from "./lib/widget-validate"
 import {
@@ -92,7 +92,7 @@ class PacketaProviderService extends AbstractFulfillmentProviderService {
 			return options
 		}
 		const enabled = this.options_.enabled_carriers
-		for (const c of carriers) {
+		for (const c of applyCarrierFilter(carriers, this.options_.carrier_filter)) {
 			if (!c.available) continue
 			if (enabled !== "all" && !enabled.includes(c.id)) continue
 			options.push({
@@ -164,7 +164,7 @@ class PacketaProviderService extends AbstractFulfillmentProviderService {
 					"Packeta home delivery needs a shipping address country to pick a carrier.",
 				)
 			}
-			const carrier = await this.feed_.homeDeliveryCarrier(country)
+			const carrier = await this.feed_.homeDeliveryCarrier(country, this.options_.carrier_filter)
 			if (!carrier) {
 				throw new MedusaError(
 					MedusaError.Types.INVALID_DATA,
@@ -562,6 +562,28 @@ export function validatePacketaOptions(options: PacketaOptions): void {
 			MedusaError.Types.INVALID_DATA,
 			`Packeta \`label_format\` must be one of: ${PACKETA_LABEL_FORMATS.join(", ")}.`,
 		)
+	}
+	const filter = options.carrier_filter
+	if (filter) {
+		if (
+			filter.countries !== undefined &&
+			(!Array.isArray(filter.countries) || !filter.countries.every((c) => typeof c === "string"))
+		) {
+			throw new MedusaError(
+				MedusaError.Types.INVALID_DATA,
+				"Packeta `carrier_filter.countries` must be a list of ISO country codes.",
+			)
+		}
+		const validTypes = new Set(["hd", "pickup", "box"])
+		if (
+			filter.types !== undefined &&
+			(!Array.isArray(filter.types) || !filter.types.every((t) => validTypes.has(t)))
+		) {
+			throw new MedusaError(
+				MedusaError.Types.INVALID_DATA,
+				'Packeta `carrier_filter.types` must be a list containing "hd", "pickup" or "box".',
+			)
+		}
 	}
 }
 
