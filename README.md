@@ -60,6 +60,7 @@ const packeta = {
   // optional — see the table below
   // cod_payment_providers: ["pp_system_default"],
   // enabled_carriers: ["106", "131", "3060"],
+  // carrier_filter: { countries: ["cz", "sk"], cod: true },
   // label_format: "A6 on A6",
 }
 
@@ -107,7 +108,8 @@ The prices are flat Medusa prices. Packeta has no price API.
 | `packaging_weight_g` | no | `100` | The plugin adds this value (grams) to the sum of the line weights. |
 | `label_format` | no | `"A6 on A6"` | `A6 on A6`, `A7 on A7`, `A6 on A4`, `A7 on A4`, `105x35mm on A4`, `A8 on A8`. |
 | `expose_carriers` | no | `true` | Add one fulfillment option for each carrier in the feed. |
-| `enabled_carriers` | no | `"all"` | Carrier IDs to show (`["106", "3060"]`) or `"all"`. |
+| `enabled_carriers` | no | `"all"` | Carrier IDs to show (`["106", "3060"]`) or `"all"`. Applied after `carrier_filter`. |
+| `carrier_filter` | no | — | Narrow the carrier set: `{ countries, types, cod, min_max_weight_kg, eu_only, exclude_ids }`. `types` is a list of `"hd"`, `"pickup"`, `"box"`; `cod: true` keeps COD carriers only; `eu_only: true` keeps carriers without customs declarations. |
 | `feed_ttl_s` | no | `86400` | Time (seconds) that the plugin keeps the carrier feed in the cache. |
 | `validate_pickup_point` | no | `true` | Validate the selected pickup point with Packeta at checkout. |
 | `webhook_signing_key` | no | — | Signing key for push tracking. If this key is not set, the webhook sends 503. |
@@ -169,7 +171,7 @@ If you control the widget yourself, send `data` in this format. `pointToShipping
 { "address": { "street": "Vinohradská", "house_number": "1", "city": "Praha", "zip": "12000", "country": "cz" } }
 ```
 
-`GET /store/packeta/carriers?country=cz` returns the public carrier list (`id`, `name`, `country`, `pickup_points`, `disallows_cod`, `requires_size`, `max_weight`) and `home_delivery_carrier_id`. Use it for the `vendors` filters of the widget. For a procedure with the Next.js starter, refer to [`docs/storefront-nextjs.md`](docs/storefront-nextjs.md).
+`GET /store/packeta/carriers?country=cz` returns the public carrier list (`id`, `name`, `country`, `pickup_points`, `disallows_cod`, `requires_size`, `max_weight`) and `home_delivery_carrier_id`. Use it for the `vendors` filters of the widget. The configured `carrier_filter` applies to this list; `type=hd,pickup,box` and `cod=1` narrow it further. For a procedure with the Next.js starter, refer to [`docs/storefront-nextjs.md`](docs/storefront-nextjs.md).
 
 ## Admin
 
